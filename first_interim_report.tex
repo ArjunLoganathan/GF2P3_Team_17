@@ -21,276 +21,327 @@ Team Number: \textit{Insert team number here}\\
 
 \section{Introduction and General Approach}
 
-The aim of this project is to develop a Python logic simulator for combinational
-and clocked logic circuits. The simulator will operate in two main phases. In
-the first phase, it will read a text definition file describing the devices in
-the circuit, the connections between them, and the initial monitor points. In
-the second phase, it will allow the user to run the simulation, change switch
-states, and inspect the monitored signals.
+The aim of this project is to develop a Python logic simulator for
+combinational and clocked logic circuits. The simulator will work in two main
+phases. First, it reads a text definition file describing the devices in the
+circuit, the connections between them, and the initial monitor points. Second,
+it allows the user to run the network, change switch states, and inspect the
+monitored output signals.
 
-This first interim report specifies the logic description language used in the
-definition file. The language has been designed to be readable by a user and
-straightforward for a top-down parser to process. The file is divided into
-three compulsory sections: \texttt{DEVICES}, \texttt{CONNECT}, and
-\texttt{MONITOR}, followed by \texttt{END;}. Each statement is terminated by a
-semicolon, which also gives the parser a simple point at which to recover after
-an error.
+This report specifies the logic description language used in the definition
+file. The language is designed to be readable, simple to parse, and easy to
+check for errors. The syntax is deliberately fairly general: it defines the
+overall structure of the file, while detailed device-specific checks are left
+to semantic analysis. For example, the grammar can recognise a pin name such as
+\texttt{G1.3}, but semantic checking decides whether pin \texttt{3} actually
+exists on device \texttt{G1}.
+
+The definition file is divided into an optional import block, a device block, a
+connection block, a monitor block, and a final \texttt{END}. The main design
+choice is to keep the syntax compact while using clear semantic error messages
+to explain invalid circuits.
 
 \section{Teamwork Planning}
 
-The team divided the first interim work into three parallel tracks.
+The team divided the first interim work into three parallel tasks.
 
 \begin{itemize}
-    \item \textbf{Person A: Syntax and scanner-facing language design.}
-    This person is responsible for the EBNF grammar, keywords, punctuation,
-    comment syntax, whitespace rules, and syntax error list.
+    \item \textbf{Person A: Language syntax and scanner planning.}
+    This person is responsible for the EBNF grammar, reserved words,
+    punctuation, comments, whitespace handling, and scanner token decisions.
 
-    \item \textbf{Person B: Semantics, parser design, and error handling.}
+    \item \textbf{Person B: Semantics and error handling.}
     This person is responsible for defining semantic constraints, identifying
-    semantic errors, and describing how syntax and semantic errors will be
+    semantic errors, and specifying how syntax and semantic errors will be
     reported.
 
     \item \textbf{Person C: Examples, diagrams, and report assembly.}
-    This person is responsible for the two example definition files, their
-    diagrams, the introduction, the teamwork plan, and the final proofread.
+    This person is responsible for writing example definition files, drawing
+    circuit diagrams, assembling the report, and checking consistency between
+    the examples, grammar, and semantic rules.
 \end{itemize}
 
-The three tracks are connected by clear inputs and outputs. The example files
-must follow the grammar produced by Person A, and Person B must confirm that
-the examples obey the semantic rules. All team members will review the final
-language before it is frozen, because changes to the language affect the
-scanner, parser, tests, and example files.
+The team will review the language together before implementation begins. This
+is important because the language affects the scanner, parser, test files, GUI
+examples, and user guide. During implementation, each person will mainly work
+on their own module, but tests should be reviewed by someone other than the
+module author where possible.
 
-After this interim report, the implementation work will continue with the same
-division of responsibility: names and scanner, parser and network construction,
-and GUI/integration. Where practical, each module will be tested by someone
-other than its main author.
+\begin{center}
+\begin{tabular}{|p{0.18\linewidth}|p{0.72\linewidth}|}
+\hline
+\textbf{Date} & \textbf{Planned work}\\
+\hline
+15--17 May & Agree language structure, draft EBNF, choose examples.\\
+\hline
+18--21 May & Finalise grammar, semantic rules, error handling, and diagrams.\\
+\hline
+22--24 May & Assemble, proofread, and submit first interim report.\\
+\hline
+25 May--4 June & Implement names, scanner, parser, GUI, and tests.\\
+\hline
+5 June & Submit second interim work and receive maintenance task.\\
+\hline
+\end{tabular}
+\end{center}
 
-\section{Syntax of the Logic Description Language}
+\section{Logic Description Language Syntax}
 
-\subsection{General Format}
+\subsection{General File Structure}
 
-A definition file contains a list of device declarations, followed by a list of
-connections, followed by a list of initial monitor points. The required section
-order is:
+A circuit definition consists of the following parts:
 
 \begin{enumerate}
-    \item \texttt{DEVICES}
-    \item \texttt{CONNECT}
-    \item \texttt{MONITOR}
-    \item \texttt{END;}
+    \item an optional \texttt{IMPORT} block for custom device types;
+    \item a \texttt{DEVICES} block declaring all devices;
+    \item a \texttt{CONNECT} block declaring all connections;
+    \item a \texttt{MONITOR} block declaring initial monitor points;
+    \item a final \texttt{END}.
 \end{enumerate}
 
-For example:
+The basic shape of a file is:
 
 \begin{verbatim}
 DEVICES:
-  SW1 = SWITCH(0);
-  G1 = NAND(2);
+  ...
+DEVICES END;
 
 CONNECT:
-  SW1 -> G1.I1;
+  ...
+CONNECT END;
 
 MONITOR:
-  G1;
-END;
+  ...
+MONITOR END;
+
+END
 \end{verbatim}
 
-The language is free-format. Spaces, tabs, and line breaks may be inserted
-between symbols without changing the meaning of the file, except inside names,
-numbers, keywords, and punctuation symbols such as \texttt{->}.
+A connection statement has the form:
+
+\begin{verbatim}
+OutputSignal = InputSignal;
+\end{verbatim}
+
+This means that the output signal on the left is connected to the input signal
+on the right.
 
 \subsection{EBNF Grammar}
 
-The syntax is specified using Extended Backus Naur Form:
+The syntax of the language is defined by the following EBNF grammar.
 
 \begin{verbatim}
-definition =
-    devices_section , connections_section , monitors_section , "END" , ";" ;
+CircuitDefinition = [ ImportsBlock ] , DevicesBlock,
+                    ConnectionsBlock, MonitorsBlock, "END" ;
 
-devices_section =
-    "DEVICES" , ":" , device_decl , { device_decl } ;
+ImportsBlock      = "IMPORT", ":", { ImportRule },
+                    "IMPORT", "END", ";" ;
 
-device_decl =
-    name , "=" , device_kind , [ "(" , number , ")" ] , ";" ;
+ImportRule        = CustomTypeName, "FROM", QuotedString, ";" ;
 
-connections_section =
-    "CONNECT" , ":" , connection , { connection } ;
+DevicesBlock      = "DEVICES", ":", { DeviceDeclaration },
+                    "DEVICES", "END", ";" ;
 
-connection =
-    signal , "->" , signal , ";" ;
+DeviceDeclaration = DeviceName, "=", DeviceType, [ DeviceParameter ], ";" ;
 
-monitors_section =
-    "MONITOR" , ":" , monitor , { monitor } ;
+DeviceType        = PrimitiveType | CustomTypeName ;
 
-monitor =
-    signal , ";" ;
+PrimitiveType     = "SWITCH" | "CLOCK" | "AND" | "OR" | "NAND" |
+                    "NOR" | "XOR" | "NOT" | "DTYPE" ;
 
-signal =
-    name , [ "." , name ] ;
+CustomTypeName    = Letter, { Letter | Digit } ;
 
-device_kind =
-    "CLOCK" | "SWITCH" | "AND" | "NAND" | "OR" | "NOR" | "DTYPE" | "XOR" ;
+DeviceParameter   = Number ;
 
-name =
-    letter , { letter | digit } ;
+ConnectionsBlock  = "CONNECT", ":", { ConnectionRule },
+                    "CONNECT", "END", ";" ;
 
-number =
-    digit , { digit } ;
+ConnectionRule    = OutputSignal, "=", InputSignal, ";" ;
 
-letter =
-    "A" | ... | "Z" | "a" | ... | "z" ;
+OutputSignal      = DeviceName, [ "." , PinName ] ;
 
-digit =
-    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+InputSignal       = DeviceName, "." , PinName ;
+
+MonitorsBlock     = "MONITOR", ":", { MonitorRule },
+                    "MONITOR", "END", ";" ;
+
+MonitorRule       = OutputSignal, ";" ;
+
+DeviceName        = Letter, { Letter | Digit } ;
+
+PinName           = ( Letter | Digit ) , { Letter | Digit } ;
+
+Number            = Digit, { Digit } ;
+
+QuotedString      = '"', { Character }, '"' ;
+
+Letter            = "A" | "B" | ... | "Z" | "a" | ... | "z" ;
+
+Digit             = "0" | "1" | "2" | "3" | "4" |
+                    "5" | "6" | "7" | "8" | "9" ;
 \end{verbatim}
+
+Here, \texttt{Character} means any printable character except a double quote or
+newline. This is used only inside quoted import paths.
 
 \subsection{Comments and Whitespace}
 
-Comments are handled by the scanner rather than the parser, so they are not
-included in the EBNF grammar. A comment begins with the character \texttt{\#}
-and continues to the end of the current line. The scanner will ignore the
-comment text before returning symbols to the parser.
+Comments are handled by the scanner and are therefore not part of the formal
+grammar. A comment begins with \texttt{\#} and continues to the end of the
+current line.
 
 \begin{verbatim}
-SW1 = SWITCH(0); # initial switch value is low
+G1 = NAND 2; # two-input NAND gate
 \end{verbatim}
 
-Whitespace is also ignored by the scanner, except where it separates tokens.
-For example, \texttt{SW1 = SWITCH(0);} and the following are equivalent:
-
-\begin{verbatim}
-SW1
-=
-SWITCH
-(
-0
-)
-;
-\end{verbatim}
-
-However, whitespace cannot appear inside a name, number, keyword, or punctuation
-symbol. For example, \texttt{SW 1} is not the same name as \texttt{SW1}.
+Whitespace is free-format. Spaces, tabs, and line breaks may appear between
+tokens without changing the meaning of the file. Whitespace may not appear
+inside names, numbers, quoted strings, or punctuation symbols.
 
 \subsection{Scanner Tokens}
 
-The scanner will return the following token types to the parser:
+The scanner will translate the input file into a stream of tokens for the
+parser. The required token types are:
 
 \begin{center}
 \begin{tabular}{>{\ttfamily}ll}
-KEYWORD & Reserved language word.\\
-NAME & User-defined device or port name.\\
-NUMBER & Integer number.\\
+KEYWORD & reserved word such as DEVICES or SWITCH\\
+NAME & user-defined name or pin name\\
+NUMBER & integer number\\
+STRING & quoted import path\\
 COLON & \texttt{:}\\
 SEMICOLON & \texttt{;}\\
 EQUALS & \texttt{=}\\
 DOT & \texttt{.}\\
-ARROW & \texttt{->}\\
-LEFT\_PAREN & \texttt{(}\\
-RIGHT\_PAREN & \texttt{)}\\
-EOF & End of file.\\
-INVALID & Invalid character or token.\\
+EOF & end of file\\
+INVALID & invalid character or token\\
 \end{tabular}
 \end{center}
 
 The reserved keywords are:
 
 \begin{verbatim}
-DEVICES CONNECT MONITOR END CLOCK SWITCH AND NAND OR NOR DTYPE XOR
+IMPORT FROM DEVICES CONNECT MONITOR END
+SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE
 \end{verbatim}
 
-Reserved keywords may not be used as device names.
+Reserved keywords may not be used as device names or custom type names.
 
 \section{Semantic Constraints}
 
-A file may satisfy the grammar but still fail to describe a meaningful circuit.
-These cases are semantic errors. The parser will therefore check not only that
-each statement is syntactically well formed, but also that devices are declared
-correctly, ports exist for the relevant device type, connections run from
-outputs to inputs, and monitor points refer to valid outputs.
+The grammar describes the shape of a valid file, but not every grammatically
+valid file describes a valid circuit. Semantic analysis checks whether the
+devices, parameters, pins, connections, monitor points, and imports are
+meaningful.
+
+\subsection{Import Constraints}
+
+\begin{itemize}
+    \item The \texttt{IMPORT} block is optional.
+    \item A custom type must be imported before it is used as a
+    \texttt{DeviceType}.
+    \item A custom type name must not be the same as a primitive type or
+    reserved keyword.
+    \item Two imports must not define the same custom type name.
+    \item The quoted import path must refer to a readable file.
+    \item Recursive imports are not allowed.
+    \item If custom device simulation is not implemented, imports will be
+    rejected with a clear semantic error.
+\end{itemize}
 
 \subsection{Device Constraints}
 
 \begin{itemize}
     \item Every device name must be unique.
-    \item A device name must not be a reserved keyword.
-    \item Every device kind must be one of \texttt{CLOCK}, \texttt{SWITCH},
-    \texttt{AND}, \texttt{NAND}, \texttt{OR}, \texttt{NOR}, \texttt{DTYPE}, or
-    \texttt{XOR}.
-    \item A \texttt{SWITCH} must have one qualifier, either \texttt{0} or
-    \texttt{1}, giving its initial state.
-    \item A \texttt{CLOCK} must have one positive integer qualifier, giving
-    the number of simulation cycles in half a clock period.
-    \item \texttt{AND}, \texttt{NAND}, \texttt{OR}, and \texttt{NOR} gates must
-    have one integer qualifier from \texttt{1} to \texttt{16}, giving the
-    number of inputs.
-    \item \texttt{XOR} has exactly two inputs and must not be given a
-    qualifier.
+    \item Every device type must be a primitive type or an imported custom
+    type.
+    \item \texttt{SWITCH} requires one parameter, either \texttt{0} or
+    \texttt{1}, giving the initial output state.
+    \item \texttt{CLOCK} requires one positive integer parameter giving the
+    number of simulation cycles in half a period.
+    \item \texttt{AND}, \texttt{OR}, \texttt{NAND}, and \texttt{NOR} require
+    one integer parameter giving the number of inputs. This value must be
+    between 1 and 16.
+    \item \texttt{XOR} has two inputs and must not be given a parameter.
+    \item \texttt{NOT} has one input and must not be given a parameter.
     \item \texttt{DTYPE} has fixed inputs and outputs and must not be given a
-    qualifier.
-    \item A device must be declared in the \texttt{DEVICES} section before it
-    can be used in a connection or monitor declaration.
+    parameter.
 \end{itemize}
 
-\subsection{Port and Signal Constraints}
+\subsection{Pin and Signal Constraints}
 
 \begin{itemize}
-    \item \texttt{CLOCK}, \texttt{SWITCH}, \texttt{AND}, \texttt{NAND},
-    \texttt{OR}, \texttt{NOR}, and \texttt{XOR} have a single unnamed output,
-    referenced using the device name alone.
-    \item \texttt{DTYPE} outputs are referenced as \texttt{device.Q} and
-    \texttt{device.QBAR}.
-    \item Gate inputs are named \texttt{I1}, \texttt{I2}, and so on, up to the
-    declared number of inputs.
-    \item \texttt{XOR} inputs are \texttt{I1} and \texttt{I2}.
-    \item \texttt{DTYPE} inputs are \texttt{DATA}, \texttt{CLK}, \texttt{SET},
-    and \texttt{CLEAR}.
-    \item A port name must exist for the declared device type.
-    \item A signal used as a monitor must refer to an output, not an input.
+    \item Single-output devices may be used as output signals by writing the
+    device name alone.
+    \item Gate inputs may be referred to using numbered pins such as
+    \texttt{1}, \texttt{2}, or named pins such as \texttt{I1}, \texttt{I2},
+    depending on the implementation convention chosen.
+    \item \texttt{DTYPE} input pins are \texttt{DATA}, \texttt{CLK},
+    \texttt{SET}, and \texttt{CLEAR}.
+    \item \texttt{DTYPE} output pins are \texttt{Q} and \texttt{QBAR}.
+    \item A pin name is only semantically valid if it exists on the referenced
+    device.
+    \item A signal used in the left side of a connection must be an output.
+    \item A signal used in the right side of a connection must be an input.
+    \item A monitor point must be an output signal.
 \end{itemize}
 
 \subsection{Connection Constraints}
 
 \begin{itemize}
-    \item Each connection must go from one output signal to one input signal.
-    \item The left hand side of \texttt{->} must be an output.
-    \item The right hand side of \texttt{->} must be an input.
-    \item An input may only be connected once.
-    \item Multiple inputs may be connected to the same output.
+    \item Each connection connects exactly one output signal to one input
+    signal.
+    \item An input may be connected at most once.
+    \item One output may drive more than one input.
+    \item A connection must not refer to an undeclared device.
+    \item A connection must not refer to a non-existent pin.
     \item All required inputs must be connected before the simulation can run.
-    \item A connection must not refer to an undeclared device or a non-existent
-    port.
 \end{itemize}
 
 \subsection{Monitor Constraints}
 
 \begin{itemize}
-    \item Every monitor point must refer to an existing output signal.
-    \item A monitor point must not refer to an input signal.
-    \item Duplicate monitor points will be reported as semantic errors.
+    \item A monitor point must refer to an existing device.
+    \item A monitor point must refer to an output, not an input.
+    \item Duplicate monitor points will be rejected as semantic errors.
+    \item An empty monitor block is syntactically valid; monitors can be added
+    later through the user interface.
 \end{itemize}
 
 \section{Error Conditions and Error Handling}
 
 \subsection{Syntax Errors}
 
-Syntax errors occur when the sequence of symbols in the definition file does
-not follow the EBNF grammar. The parser will detect syntax errors such as:
+Syntax errors occur when the token sequence does not match the EBNF grammar.
+Examples include:
 
 \begin{itemize}
-    \item Missing \texttt{DEVICES}, \texttt{CONNECT}, or \texttt{MONITOR}
-    section.
-    \item Missing \texttt{END;}.
-    \item Missing colon after a section keyword.
-    \item Missing semicolon after a device declaration, connection, monitor, or
-    \texttt{END}.
-    \item Missing equals sign in a device declaration.
-    \item Missing opening or closing parenthesis around a qualifier.
-    \item Missing arrow in a connection.
-    \item Invalid name, number, or punctuation symbol.
-    \item Unexpected keyword or name in the wrong section.
-    \item Unexpected end of file before \texttt{END;}.
+    \item missing section keyword;
+    \item missing colon after a section keyword;
+    \item missing semicolon after a rule;
+    \item missing equals sign in a device declaration;
+    \item missing equals sign in a connection rule;
+    \item missing block terminator such as \texttt{DEVICES END;};
+    \item malformed quoted string;
+    \item invalid character;
+    \item unexpected end of file.
 \end{itemize}
+
+When a syntax error is found, the scanner will print the current line and a
+caret marker showing the approximate error position. The parser will then print
+a short message explaining what was expected.
+
+\begin{verbatim}
+DEVICES:
+  G1 NAND 2;
+     ^
+*** Error: Expected '=' after device name.
+\end{verbatim}
+
+After reporting a syntax error, the parser will skip tokens until it reaches a
+safe recovery point. Recovery points include semicolons, block-ending keywords,
+and end of file. This should allow several errors in one file to be reported in
+a single run.
 
 \subsection{Semantic Errors}
 
@@ -298,95 +349,75 @@ Semantic errors occur when the syntax is valid but the circuit description is
 not meaningful. The main semantic errors are:
 
 \begin{itemize}
-    \item Duplicate device name.
-    \item Reserved keyword used as a device name.
-    \item Unknown device kind.
-    \item Missing required qualifier for \texttt{SWITCH}, \texttt{CLOCK}, or a
-    gate.
-    \item Unexpected qualifier for \texttt{DTYPE} or \texttt{XOR}.
-    \item Invalid switch initial value.
-    \item Invalid clock period.
-    \item Invalid gate input count.
-    \item Unknown device name in a connection or monitor.
-    \item Unknown input or output port.
-    \item Input used where an output is required.
-    \item Output used where an input is required.
-    \item Attempt to connect an input that is already connected.
-    \item Required input left unconnected.
-    \item Monitor point refers to an input or non-existent output.
-    \item Duplicate monitor point.
+    \item duplicate device name;
+    \item reserved keyword used as a custom type or device name;
+    \item custom type used without import;
+    \item import file missing or invalid;
+    \item unsupported primitive device;
+    \item missing required parameter;
+    \item unexpected parameter;
+    \item invalid switch value;
+    \item invalid clock period;
+    \item invalid gate input count;
+    \item unknown device in a connection or monitor;
+    \item unknown pin;
+    \item input used where an output is required;
+    \item output used where an input is required;
+    \item input connected more than once;
+    \item monitor point refers to an input;
+    \item required input left unconnected.
 \end{itemize}
 
-\subsection{Reporting and Recovery}
-
-When an error is detected, the scanner will print the current input line and a
-caret marker showing the approximate position of the error. The parser will
-then print a clear message explaining the problem and increment an error count.
-
-For example:
+Semantic error messages will name the device, pin, or type causing the problem.
 
 \begin{verbatim}
 CONNECT:
-  SW1 -> G1;
-         ^
-*** Error: Connection target G1 is an output, not an input.
+  SW1 = G1.3;
+        ^
+*** Error: G1.3 is not valid because G1 has only two inputs.
 \end{verbatim}
 
-For syntax errors, the parser will skip symbols until it reaches a safe recovery
-point. The main recovery points are semicolons, section keywords
-(\texttt{DEVICES}, \texttt{CONNECT}, \texttt{MONITOR}), \texttt{END}, and end
-of file. This should allow the parser to report more than one error from a
-single file.
-
-For semantic errors, the parser will report the problem and continue checking
-later statements where possible. However, if any syntax or semantic error is
-found, \texttt{parse\_network()} will return failure and the simulator will not
-run. Network construction will only be trusted if no errors have been detected.
-
-Example error messages include:
-
-\begin{verbatim}
-*** Error: Expected semicolon.
-*** Error: Device name G1 has already been declared.
-*** Error: SWITCH SW1 has invalid initial value 3.
-*** Error: G1.I3 is not a valid input for a 2-input NAND gate.
-*** Error: Monitor point D1.DATA is an input, not an output.
-\end{verbatim}
+If any syntax or semantic error is found, parsing fails and the simulator will
+not run. The parser may continue checking later statements to find additional
+errors, but the network will only be executed if no errors are detected.
 
 \section{Example Definition Files}
 
 \subsection{Example 1: NAND Latch}
 
-The first example is a cross-coupled NAND latch using two switches and two
-2-input NAND gates. The initial monitor points are the outputs of the two NAND
-gates.
+This example describes a cross-coupled NAND latch. Two switches provide the
+external inputs and the outputs of the two NAND gates are monitored.
 
 \begin{verbatim}
 DEVICES:
-  SW1 = SWITCH(0);
-  SW2 = SWITCH(0);
-  G1 = NAND(2);
-  G2 = NAND(2);
+  SW1 = SWITCH 0;
+  SW2 = SWITCH 0;
+  G1 = NAND 2;
+  G2 = NAND 2;
+DEVICES END;
 
 CONNECT:
-  SW1 -> G1.I1;
-  SW2 -> G2.I2;
-  G1 -> G2.I1;
-  G2 -> G1.I2;
+  SW1 = G1.1;
+  SW2 = G2.2;
+  G1 = G2.1;
+  G2 = G1.2;
+CONNECT END;
 
 MONITOR:
   G1;
   G2;
-END;
+MONITOR END;
+
+END
 \end{verbatim}
 
 Diagram:
 
 \begin{verbatim}
         +---------+                 +---------+
-SW1 --->| G1 NAND |---- G1 -------->| G2.I1   |
-        | I1   I2 |                 | NAND    |---- G2
-G2  --->|         |                 | I2      |
+SW1 --->| G1 NAND |---- G1 -------->| G2.1    |
+        | 1     2 |                 | NAND    |---- G2
+G2  --->|         |                 | 2       |
         +---------+                 +---------+
                                            ^
                                            |
@@ -397,37 +428,41 @@ Monitor points: G1 and G2
 
 \subsection{Example 2: Clocked D-Type Circuit}
 
-The second example uses a \texttt{DTYPE} device. It demonstrates named inputs
-and named outputs, as well as a clock and several switches.
+This example uses a \texttt{DTYPE} device, three switches, and one clock. It
+demonstrates named input pins and named output pins.
 
 \begin{verbatim}
 DEVICES:
-  DATA_SW = SWITCH(0);
-  SET_SW = SWITCH(0);
-  CLEAR_SW = SWITCH(0);
-  CLK1 = CLOCK(2);
+  DATA = SWITCH 0;
+  SETSW = SWITCH 0;
+  CLRSW = SWITCH 0;
+  CLK1 = CLOCK 2;
   D1 = DTYPE;
+DEVICES END;
 
 CONNECT:
-  DATA_SW -> D1.DATA;
-  CLK1 -> D1.CLK;
-  SET_SW -> D1.SET;
-  CLEAR_SW -> D1.CLEAR;
+  DATA = D1.DATA;
+  CLK1 = D1.CLK;
+  SETSW = D1.SET;
+  CLRSW = D1.CLEAR;
+CONNECT END;
 
 MONITOR:
   D1.Q;
   D1.QBAR;
   CLK1;
-END;
+MONITOR END;
+
+END
 \end{verbatim}
 
 Diagram:
 
 \begin{verbatim}
-DATA_SW ---------------> DATA        Q -----> monitor D1.Q
-CLK1 ------------------> CLK     +-------+
-SET_SW ----------------> SET     | DTYPE |
-CLEAR_SW --------------> CLEAR   +-------+
+DATA  ----------------> DATA        Q -----> monitor D1.Q
+CLK1  ----------------> CLK     +-------+
+SETSW ----------------> SET     | DTYPE |
+CLRSW ----------------> CLEAR   +-------+
                                   QBAR --> monitor D1.QBAR
 
 CLK1 has half-period 2 and is also monitored.
@@ -435,13 +470,11 @@ CLK1 has half-period 2 and is also monitored.
 
 \section{Conclusion}
 
-The proposed definition language is deliberately simple. It uses fixed sections,
-clear keywords, directed connection arrows, dot notation for ports, and
-semicolons after every statement. This makes files readable for users and gives
-the parser clear recovery points after errors. The semantic rules define how
-the parser will reject syntactically valid files that do not describe valid
-logic circuits. The next stage of the project will be to implement the
-\texttt{names}, \texttt{scanner}, \texttt{parse}, and \texttt{gui} modules
-using this specification.
+The proposed language gives a clear overall structure for logic definition
+files while leaving device-specific validity checks to semantic analysis. This
+keeps the grammar compact and allows the parser to report useful errors for
+invalid devices, parameters, pins, connections, imports, and monitor points.
+The next stage of the project will be to implement the names, scanner, parser,
+and GUI modules using this specification.
 
 \end{document}
