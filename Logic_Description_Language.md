@@ -1,4 +1,4 @@
-CircuitDefinition = DevicesBlock, ConnectionsBlock, MonitorsBlock, "END" ;
+CircuitDefinition = [ ImportsBlock ] , DevicesBlock, ConnectionsBlock, MonitorsBlock, "END" ;
 
 ImportsBlock      = "IMPORT", ":", { ImportRule }, "IMPORT", "END", ";" ;
 ImportRule        = CustomTypeName, "FROM", QuotedString, ";" ;
@@ -19,7 +19,7 @@ MonitorsBlock     = "MONITOR", ":", { MonitorRule }, "MONITOR", "END", ";" ;
 MonitorRule       = OutputSignal, ";" ;
 
 DeviceName        = Letter, { Letter | Digit } ;
-PinName           = Letter | Digit, { Letter | Digit } ;
+PinName           = (Letter | Digit) , { Letter | Digit } ;
 Number            = Digit, { Digit } ;
 QuotedString      = '"', { Character }, '"' ;
 
