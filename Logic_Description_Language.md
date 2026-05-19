@@ -1,6 +1,6 @@
 CircuitDefinition = DevicesBlock, ConnectionsBlock, MonitorsBlock, "END" ;
 
-ImportsBlock      = "IMPORT", ";", { ImportRule }, "IMPORT", "END", ";" ;
+ImportsBlock      = "IMPORT", ":", { ImportRule }, "IMPORT", "END", ";" ;
 ImportRule        = CustomTypeName, "FROM", QuotedString, ";" ;
 
 DevicesBlock      = "DEVICES", ":", { DeviceDeclaration }, "DEVICES", "END", ";" ;
@@ -13,7 +13,7 @@ ConnectionRule    = OutputSignal, "=", InputSignal, ";" ;
 OutputSignal      = DeviceName, [ "." , PinName ] ;
 InputSignal       = DeviceName, "." , PinName ;
 
-MonitorsBlock     = "MONITOR", ";", { MonitorRule }, "MONITOR", "END", ";" ;
+MonitorsBlock     = "MONITOR", ":", { MonitorRule }, "MONITOR", "END", ";" ;
 MonitorRule       = OutputSignal, ";" ;
 
 DeviceName        = Letter, { Letter | Digit } ;
