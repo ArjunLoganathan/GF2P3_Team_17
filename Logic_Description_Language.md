@@ -5,7 +5,9 @@ ImportRule        = CustomTypeName, "FROM", QuotedString, ";" ;
 
 DevicesBlock      = "DEVICES", ":", { DeviceDeclaration }, "DEVICES", "END", ";" ;
 DeviceDeclaration = DeviceName, "=", DeviceType, [ DeviceParameter ], ";" ;
-DeviceType        = "SWITCH" | "CLOCK" | "AND" | "OR" | "NAND" | "NOR" | "XOR" | "NOT" | "DTYPE" ;
+DeviceType        = PrimitiveType | CustomTypeName ;
+PrimitiveType     = "SWITCH" | "CLOCK" | "AND" | "OR" | "NAND" | "NOR" | "XOR" | "NOT" | "DTYPE" ;
+CustomTypeName    = Letter, { Letter | Digit } ;
 DeviceParameter   = Number ;
 
 ConnectionsBlock  = "CONNECT", ":", { ConnectionRule }, "CONNECT", "END", ";" ;
