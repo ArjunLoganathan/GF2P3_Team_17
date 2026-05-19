@@ -51,6 +51,24 @@ class Scanner:
 
     def __init__(self, path, names):
         """Open specified file and initialise reserved words and IDs."""
+        self.path = path
+        self.names = names
+        self.file = self.open_file(path)
 
     def get_symbol(self):
         """Translate the next sequence of characters into a symbol."""
+
+    def open_file(self):
+        """Open and return the file specified by path."""
+        try:
+            file = open(self.path,"r")
+            return file
+        except (OSError, IOError) as e:
+            raise FileNotFoundError("The provided path was not found!")
+        
+    def get_next_character(self):
+        """Read and return the next character in input_file."""
+        try:
+            return self.file.read(1)
+        except Exception as e:
+            raise Exception(f"Exception: {e}")
