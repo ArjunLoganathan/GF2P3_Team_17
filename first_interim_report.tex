@@ -4,6 +4,7 @@
 \usepackage{array}
 \usepackage{longtable}
 \usepackage{parskip}
+\usepackage{booktabs}
 \usepackage{hyperref}
 
 \title{GF2 Software Project: First Interim Report}
@@ -11,7 +12,7 @@
 Team Number: \textit{Insert team number here}\\
 \textit{Insert Name 1 and CRSID}\\
 \textit{Insert Name 2 and CRSID}\\
-\textit{Insert Name 3 and CRSID}
+\textit{Shi Tan Li (stl46)}
 }
 \date{24 May 2026}
 
@@ -307,79 +308,30 @@ meaningful.
     \item An empty monitor block is syntactically valid; monitors can be added
     later through the user interface.
 \end{itemize}
+\section{Error Handling and Numeric Error Matrix}
 
-\section{Error Conditions and Error Handling}
-
-\subsection{Syntax Errors}
-
-Syntax errors occur when the token sequence does not match the EBNF grammar.
-Examples include:
+To achieve a deterministic compilation and verification pipeline, the error system maps failures to a distinct numeric series. 
 
 \begin{itemize}
-    \item missing section keyword;
-    \item missing colon after a section keyword;
-    \item missing semicolon after a rule;
-    \item missing equals sign in a device declaration;
-    \item missing equals sign in a connection rule;
-    \item missing block terminator such as \texttt{DEVICES END;};
-    \item malformed quoted string;
-    \item invalid character;
-    \item unexpected end of file.
+    \item \textbf{\texttt{ERR\_100} Series (Syntax Errors):} Intercepted during the lexical scanning or parsing phase. These occur when the token sequence does not match the EBNF grammar. 
+    \item \textbf{\texttt{ERR\_200} Series (Semantic Errors):} Intercepted during the circuit graph construction phase. These occur when the code layout is grammatically correct, but represents an impossible or conflicting physical logic setup.
 \end{itemize}
 
-When a syntax error is found, the scanner will print the current line and a
-caret marker showing the approximate error position. The parser will then print
-a short message explaining what was expected.
+\subsection{Reporting and Panic Recovery Mechanics}
+When a parsing exception occurs, the system logs the error line number, outputs the raw string text, and displays a visual caret marker (\texttt{\^{}}) beneath the offending column position before printing the respective indexed error string.
 
 \begin{verbatim}
 DEVICES:
   G1 NAND 2;
      ^
-*** Error: Expected '=' after device name.
+*** Syntax Error 106: Missing or invalid assignment symbol. Expected '=' operator.
 \end{verbatim}
 
-After reporting a syntax error, the parser will skip tokens until it reaches a
-safe recovery point. Recovery points include semicolons, block-ending keywords,
-and end of file. This should allow several errors in one file to be reported in
-a single run.
+If any syntax or semantic error is found, parsing fails and the simulator will not run. The parser will skip tokens until it reaches a safe recovery point. Recovery
+points include semicolons, block-ending keywords, and end of file, but the network will only be executed if no errors are
+detected. This isolates individual statement failures and allows the compiler to detect and report multiple independent layout bugs during a single execution run. 
 
-\subsection{Semantic Errors}
-
-Semantic errors occur when the syntax is valid but the circuit description is
-not meaningful. The main semantic errors are:
-
-\begin{itemize}
-    \item duplicate device name;
-    \item reserved keyword used as a custom type or device name;
-    \item custom type used without import;
-    \item import file missing or invalid;
-    \item unsupported primitive device;
-    \item missing required parameter;
-    \item unexpected parameter;
-    \item invalid switch value;
-    \item invalid clock period;
-    \item invalid gate input count;
-    \item unknown device in a connection or monitor;
-    \item unknown pin;
-    \item input used where an output is required;
-    \item output used where an input is required;
-    \item input connected more than once;
-    \item monitor point refers to an input;
-    \item required input left unconnected.
-\end{itemize}
-
-Semantic error messages will name the device, pin, or type causing the problem.
-
-\begin{verbatim}
-CONNECT:
-  SW1 = G1.3;
-        ^
-*** Error: G1.3 is not valid because G1 has only two inputs.
-\end{verbatim}
-
-If any syntax or semantic error is found, parsing fails and the simulator will
-not run. The parser may continue checking later statements to find additional
-errors, but the network will only be executed if no errors are detected.
+A complete, exhaustive index containing every syntax and semantic error code used by the system is documented in \textbf{Appendix A}.
 
 \section{Example Definition Files}
 
@@ -476,5 +428,63 @@ keeps the grammar compact and allows the parser to report useful errors for
 invalid devices, parameters, pins, connections, imports, and monitor points.
 The next stage of the project will be to implement the names, scanner, parser,
 and GUI modules using this specification.
+
+\newpage
+\appendix
+\section{Exhaustive Errors Reference Matrix}
+
+The following master directory catalogues every syntax and semantic exception handled by the simulator's parsing and compilation engine.
+
+\begin{longtable}{llp{8.2cm}}
+\caption{Complete Compiler and Validation Error Index} \label{tab:appendix_errors} \\
+\toprule
+\textbf{Error Code} & \textbf{Type} & \textbf{Formatted System Error Message String} \\
+\midrule
+\endhead
+
+\bottomrule
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+\texttt{ERR\_101} & Syntax   & \texttt{*** Error 101: Unexpected end of file encountered before global 'END' sentinel.} \\ \addlinespace
+\texttt{ERR\_102} & Syntax   & \texttt{*** Error 102: Missing or misplaced character. Expected a trailing semicolon ';'.} \\ \addlinespace
+\texttt{ERR\_103} & Syntax   & \texttt{*** Error 103: Malformed block header. Expected a colon ':' following block declarations.} \\ \addlinespace
+\texttt{ERR\_104} & Syntax   & \texttt{*** Error 104: Block termination mismatch. Missing or malformed '<BLOCKNAME> END' clause.} \\ \addlinespace
+\texttt{ERR\_105} & Syntax   & \texttt{*** Error 105: Out-of-order block sequence structural arrangement declaration.} \\ \addlinespace
+\texttt{ERR\_106} & Syntax   & \texttt{*** Error 106: Missing or invalid assignment symbol. Expected '=' operator.} \\ \addlinespace
+\texttt{ERR\_107} & Syntax   & \texttt{*** Error 107: Expected a valid device parameter or configuration state integer.} \\ \addlinespace
+\texttt{ERR\_108} & Syntax   & \texttt{*** Error 108: Missing file mapping path assignment direction. Expected 'FROM' keyword.} \\ \addlinespace
+\texttt{ERR\_109} & Syntax   & \texttt{*** Error 109: Malformed character string. Paths must be wrapped in matching double quotes '"'.} \\ \addlinespace
+\texttt{ERR\_110} & Syntax   & \texttt{*** Error 110: Invalid alphanumeric token layout format intercepted by Lexical Scanner.} \\ \addlinespace
+\texttt{ERR\_111} & Syntax   & \texttt{*** Error 111: Floating parameter token or syntax debris detected trailing statement lines.} \\ \addlinespace
+\texttt{ERR\_112} & Syntax   & \texttt{*** Error 112: Missing or malformed 'INPUT\_PORTS' declaration block in sub-circuit file.} \\ \addlinespace
+\texttt{ERR\_113} & Syntax   & \texttt{*** Error 113: Missing or malformed 'OUTPUT\_PORTS' declaration block in sub-circuit file.} \\ \midrule
+
+\texttt{ERR\_201} & Semantic & \texttt{*** Error 201: Illegal type definition. Custom names cannot overwrite system primitives.} \\ \addlinespace
+\texttt{ERR\_202} & Semantic & \texttt{*** Error 202: Duplicate custom type import registration path attempted.} \\ \addlinespace
+\texttt{ERR\_203} & Semantic & \texttt{*** Error 203: Target blueprint layout file path could not be resolved by the workspace.} \\ \addlinespace
+\texttt{ERR\_204} & Semantic & \texttt{*** Error 204: Child macro file compilation aborted due to nested syntax or semantic errors.} \\ \addlinespace
+\texttt{ERR\_205} & Semantic & \texttt{*** Error 205: Duplicate component instance declaration. Device string identifier already active.} \\ \addlinespace
+\texttt{ERR\_206} & Semantic & \texttt{*** Error 206: Unknown or unregistered device type configuration identifier mapping.} \\ \addlinespace
+\texttt{ERR\_207} & Semantic & \texttt{*** Error 207: Component pin allocation constraints out-of-bounds. Primitives require 1-16 inputs.} \\ \addlinespace
+\texttt{ERR\_208} & Semantic & \texttt{*** Error 208: Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1.} \\ \addlinespace
+\texttt{ERR\_209} & Semantic & \texttt{*** Error 209: Invalid timing parameter properties. CLOCK frequencies must be positive non-zero integers.} \\ \addlinespace
+\texttt{ERR\_210} & Semantic & \texttt{*** Error 210: Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments.} \\ \addlinespace
+\texttt{ERR\_211} & Semantic & \texttt{*** Error 211: Unresolved line routing assignment. Device identifier referenced was never initialized.} \\ \addlinespace
+\texttt{ERR\_212} & Semantic & \texttt{*** Error 212: Invalid input port identifier. Pin does not exist on this component type.} \\ \addlinespace
+\texttt{ERR\_213} & Semantic & \texttt{*** Error 213: Invalid output port identifier. Pin does not exist on this component type.} \\ \addlinespace
+\texttt{ERR\_214} & Semantic & \texttt{*** Error 214: Missing terminal pin qualifier. Primitives or macro blocks require explicit dot syntax.} \\ \addlinespace
+\texttt{ERR\_215} & Semantic & \texttt{*** Error 215: Port fan-in constraint violation. Target input pin port already driven by an output source.} \\ \addlinespace
+\texttt{ERR\_216} & Semantic & \texttt{*** Error 216: Directional typing error. Signal linkages must traverse strictly from Output to Input ports.} \\ \addlinespace
+\texttt{ERR\_217} & Semantic & \texttt{*** Error 217: Macro interface typing mismatch. Child input/output port directionality has been flipped.} \\ \addlinespace
+\texttt{ERR\_218} & Semantic & \texttt{*** Error 218: Cannot track diagnostics trace loop target. Component node is not a valid output line.} \\ \addlinespace
+\texttt{ERR\_219} & Semantic & \texttt{*** Error 219: Duplicate monitor trace instruction targeting identical terminal routes.} \\ \addlinespace
+\texttt{ERR\_220} & Semantic & \texttt{*** Error 220: Open Circuit Warning. Network structural synthesis layout contains unconnected input gates.} \\ \addlinespace
+\texttt{ERR\_221} & Semantic & \texttt{*** Error 221: Circular dependency chain detected in file import statements.} \\ \addlinespace
+\texttt{ERR\_222} & Semantic & \texttt{*** Error 222: Interface boundary mismatch. Port referenced in main layout does not exist on imported macro.} \\
+
+\end{longtable}
 
 \end{document}
