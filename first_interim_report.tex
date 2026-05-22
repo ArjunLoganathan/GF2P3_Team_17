@@ -9,9 +9,9 @@
 
 \title{GF2 Software Project: First Interim Report}
 \author{
-Team Number: \textit{Insert team number here}\\
-\textit{Insert Name 1 and CRSID}\\
-\textit{Insert Name 2 and CRSID}\\
+Team Number: \textit{17}\\
+\textit{Arjun Loganathan (al2190)}\\
+\textit{Bill Leoutsakos (vl346)}\\
 \textit{Shi Tan Li (stl46)}
 }
 \date{24 May 2026}
@@ -47,13 +47,13 @@ to explain invalid circuits.
 The team divided the work into three parallel tasks.
 
 \begin{itemize}
-    \item \textbf{Person A: Language, scanner, and names}
+    \item \textbf{Arjun Loganathan: Language, scanner, and names}
     This person is responsible for names.py, scanner.py, leads the EBNF syntax section for the first interim report, and writes the scanner/names pytest test.
 
-    \item \textbf{Person B: Parser and network construction}
+    \item \textbf{Shi Tan Li: Parser and network construction}
     This person is responsible for parser syntax, and semantic checks and calls to `Devices`, `Network`, and `Monitors`. He also leads semantic error list and error handling section of the first interim report, and writing parser tests using good and bad definition files.
 
-    \item \textbf{Person C: GUI, integration, and release packaging}
+    \item \textbf{Bill Leoutsakos: GUI, integration, and release packaging}
     This person is responsible for gui.py, implementing run, continue, switch setting, monitor add/remove, quit, and waveform display. He also leads integration testing, definition examples, screenshots, packaging, and Writing manual GUI test checklist and help prepare final folder/zip submissions.
 \end{itemize}
 
@@ -303,6 +303,7 @@ meaningful.
     \item An empty monitor block is syntactically valid; monitors can be added
     later through the user interface.
 \end{itemize}
+
 \section{Error Handling and Numeric Error Matrix}
 
 To achieve a deterministic compilation and verification pipeline, the error system maps failures to a distinct numeric series. 
