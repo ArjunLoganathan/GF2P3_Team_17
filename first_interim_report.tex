@@ -1,0 +1,485 @@
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\title{GF2 Software Project: First Interim Report}
+\author{
+Team Number: \textit{Insert team number here}\\
+\textit{Insert Name 1 and CRSID}\\
+\textit{Insert Name 2 and CRSID}\\
+\textit{Shi Tan Li (stl46)}
+}
+\date{24 May 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction and General Approach}
+
+The aim of this project is to develop a Python logic simulator for
+combinational and clocked logic circuits. The simulator will work in two main
+phases. First, it reads a text definition file describing the devices in the
+circuit, the connections between them, and the initial monitor points. Second,
+it allows the user to run the network, change switch states, and inspect the
+monitored output signals.
+
+This report specifies the logic description language used in the definition
+file. The language is designed to be readable, simple to parse, and easy to
+check for errors. The syntax is deliberately fairly general: it defines the
+overall structure of the file, while detailed device-specific checks are left
+to semantic analysis. For example, the grammar can recognise a pin name such as
+\texttt{G1.3}, but semantic checking decides whether pin \texttt{3} actually
+exists on device \texttt{G1}.
+
+The definition file is divided into an optional import block, a device block, a
+connection block, a monitor block, and a final \texttt{END}. The main design
+choice is to keep the syntax compact while using clear semantic error messages
+to explain invalid circuits.
+
+\section{Teamwork Planning}
+
+The team divided the work into three parallel tasks.
+
+\begin{itemize}
+    \item \textbf{Person A: Language, scanner, and names}
+    This person is responsible for names.py, scanner.py, leads the EBNF syntax section for the first interim report, and writes the scanner/names pytest test.
+
+    \item \textbf{Person B: Parser and network construction}
+    This person is responsible for parser syntax, and semantic checks and calls to `Devices`, `Network`, and `Monitors`. He also leads semantic error list and error handling section of the first interim report, and writing parser tests using good and bad definition files.
+
+    \item \textbf{Person C: GUI, integration, and release packaging}
+    This person is responsible for gui.py, implementing run, continue, switch setting, monitor add/remove, quit, and waveform display. He also leads integration testing, definition examples, screenshots, packaging, and Writing manual GUI test checklist and help prepare final folder/zip submissions.
+\end{itemize}
+
+The team will review the language together before implementation begins. This
+is important because the language affects the scanner, parser, test files, GUI
+examples, and user guide. During implementation, each person will mainly work
+on their own module, but tests should be reviewed by someone other than the
+module author where possible.
+
+\begin{center}
+\begin{tabular}{|p{0.18\linewidth}|p{0.72\linewidth}|}
+\hline
+\textbf{Date} & \textbf{Planned work}\\
+\hline
+15--17 May & Agree language structure, draft EBNF, choose examples.\\
+\hline
+18--21 May & Finalise grammar, semantic rules, error handling, and diagrams.\\
+\hline
+22--24 May & Assemble, proofread, and submit first interim report.\\
+\hline
+25 May--4 June & Implement names, scanner, parser, GUI, and tests.\\
+\hline
+5 June & Submit second interim work and receive maintenance task.\\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Logic Description Language Syntax}
+
+\subsection{General File Structure}
+
+A circuit definition consists of the following parts:
+
+\begin{enumerate}
+    \item an optional \texttt{IMPORT} block for custom device types;
+    \item a \texttt{DEVICES} block declaring all devices;
+    \item a \texttt{CONNECT} block declaring all connections;
+    \item a \texttt{MONITOR} block declaring initial monitor points;
+    \item a final \texttt{END}.
+\end{enumerate}
+
+The basic shape of a file is:
+
+\begin{verbatim}
+DEVICES:
+  ...
+DEVICES END;
+
+CONNECT:
+  ...
+CONNECT END;
+
+MONITOR:
+  ...
+MONITOR END;
+
+END
+\end{verbatim}
+
+A connection statement has the form:
+
+\begin{verbatim}
+OutputSignal = InputSignal;
+\end{verbatim}
+
+This means that the output signal on the left is connected to the input signal
+on the right.
+
+\subsection{EBNF Grammar}
+
+The syntax of the language is defined by the following EBNF grammar.
+
+\begin{verbatim}
+CircuitDefinition = [ ImportsBlock ] , DevicesBlock,
+                    ConnectionsBlock, MonitorsBlock, "END" ;
+
+ImportsBlock      = "IMPORT", ":", { ImportRule },
+                    "IMPORT", "END", ";" ;
+
+ImportRule        = CustomTypeName, "FROM", QuotedString, ";" ;
+
+DevicesBlock      = "DEVICES", ":", { DeviceDeclaration },
+                    "DEVICES", "END", ";" ;
+
+DeviceDeclaration = DeviceName, "=", DeviceType, [ DeviceParameter ], ";" ;
+
+DeviceType        = PrimitiveType | CustomTypeName ;
+
+PrimitiveType     = "SWITCH" | "CLOCK" | "AND" | "OR" | "NAND" |
+                    "NOR" | "XOR" | "NOT" | "DTYPE" ;
+
+CustomTypeName    = Letter, { Letter | Digit } ;
+
+DeviceParameter   = Number ;
+
+ConnectionsBlock  = "CONNECT", ":", { ConnectionRule },
+                    "CONNECT", "END", ";" ;
+
+ConnectionRule    = OutputSignal, "=", InputSignal, ";" ;
+
+OutputSignal      = DeviceName, [ "." , PinName ] ;
+
+InputSignal       = DeviceName, "." , PinName ;
+
+MonitorsBlock     = "MONITOR", ":", { MonitorRule },
+                    "MONITOR", "END", ";" ;
+
+MonitorRule       = OutputSignal, ";" ;
+
+DeviceName        = Letter, { Letter | Digit } ;
+
+PinName           = ( Letter | Digit ) , { Letter | Digit } ;
+
+Number            = Digit, { Digit } ;
+
+QuotedString      = '"', { Character }, '"' ;
+
+Letter            = "A" | "B" | ... | "Z" | "a" | ... | "z" ;
+
+Digit             = "0" | "1" | "2" | "3" | "4" |
+                    "5" | "6" | "7" | "8" | "9" ;
+\end{verbatim}
+
+Here, \texttt{Character} means any printable character except a double quote or
+newline. This is used only inside quoted import paths.
+
+\subsection{Comments and Whitespace}
+
+Comments are handled by the scanner and are therefore not part of the formal
+grammar. A comment begins with \texttt{\#} and continues to the end of the
+current line.
+
+\begin{verbatim}
+G1 = NAND 2; # two-input NAND gate
+\end{verbatim}
+
+Whitespace is free-format. Spaces, tabs, and line breaks may appear between
+tokens without changing the meaning of the file. Whitespace may not appear
+inside names, numbers, quoted strings, or punctuation symbols.
+
+\subsection{Scanner Tokens}
+
+The scanner will translate the input file into a stream of tokens for the
+parser. The required token types are:
+
+\begin{center}
+\begin{tabular}{>{\ttfamily}ll}
+KEYWORD & reserved word such as DEVICES or SWITCH\\
+NAME & user-defined name or pin name\\
+NUMBER & integer number\\
+STRING & quoted import path\\
+COLON & \texttt{:}\\
+SEMICOLON & \texttt{;}\\
+EQUALS & \texttt{=}\\
+DOT & \texttt{.}\\
+EOF & end of file\\
+INVALID & invalid character or token\\
+\end{tabular}
+\end{center}
+
+The reserved keywords are:
+
+\begin{verbatim}
+IMPORT FROM DEVICES CONNECT MONITOR END
+SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE
+\end{verbatim}
+
+Reserved keywords may not be used as device names or custom type names.
+
+\section{Semantic Constraints}
+
+The grammar describes the shape of a valid file, but not every grammatically
+valid file describes a valid circuit. Semantic analysis checks whether the
+devices, parameters, pins, connections, monitor points, and imports are
+meaningful.
+
+\subsection{Import Constraints}
+
+\begin{itemize}
+    \item The \texttt{IMPORT} block is optional.
+    \item A custom type must be imported before it is used as a
+    \texttt{DeviceType}.
+    \item A custom type name must not be the same as a primitive type or
+    reserved keyword.
+    \item Two imports must not define the same custom type name.
+    \item The quoted import path must refer to a readable file.
+    \item Recursive imports are not allowed.
+    \item If custom device simulation is not implemented, imports will be
+    rejected with a clear semantic error.
+\end{itemize}
+
+\subsection{Device Constraints}
+
+\begin{itemize}
+    \item Every device name must be unique.
+    \item Every device type must be a primitive type or an imported custom
+    type.
+    \item \texttt{SWITCH} requires one parameter, either \texttt{0} or
+    \texttt{1}, giving the initial output state.
+    \item \texttt{CLOCK} requires one positive integer parameter giving the
+    number of simulation cycles in half a period.
+    \item \texttt{AND}, \texttt{OR}, \texttt{NAND}, and \texttt{NOR} require
+    one integer parameter giving the number of inputs. This value must be
+    between 1 and 16.
+    \item \texttt{XOR} has two inputs and must not be given a parameter.
+    \item \texttt{NOT} has one input and must not be given a parameter.
+    \item \texttt{DTYPE} has fixed inputs and outputs and must not be given a
+    parameter.
+\end{itemize}
+
+\subsection{Pin and Signal Constraints}
+
+\begin{itemize}
+    \item Single-output devices may be used as output signals by writing the
+    device name alone.
+    \item Gate inputs may be referred to using numbered pins such as
+    \texttt{1}, \texttt{2}, or named pins such as \texttt{I1}, \texttt{I2},
+    depending on the implementation convention chosen.
+    \item \texttt{DTYPE} input pins are \texttt{DATA}, \texttt{CLK},
+    \texttt{SET}, and \texttt{CLEAR}.
+    \item \texttt{DTYPE} output pins are \texttt{Q} and \texttt{QBAR}.
+    \item A pin name is only semantically valid if it exists on the referenced
+    device.
+    \item A signal used in the left side of a connection must be an output.
+    \item A signal used in the right side of a connection must be an input.
+    \item A monitor point must be an output signal.
+\end{itemize}
+
+\subsection{Connection Constraints}
+
+\begin{itemize}
+    \item Each connection connects exactly one output signal to one input
+    signal.
+    \item An input may be connected at most once.
+    \item One output may drive more than one input.
+    \item A connection must not refer to an undeclared device.
+    \item A connection must not refer to a non-existent pin.
+    \item All required inputs must be connected before the simulation can run.
+\end{itemize}
+
+\subsection{Monitor Constraints}
+
+\begin{itemize}
+    \item A monitor point must refer to an existing device.
+    \item A monitor point must refer to an output, not an input.
+    \item Duplicate monitor points will be rejected as semantic errors.
+    \item An empty monitor block is syntactically valid; monitors can be added
+    later through the user interface.
+\end{itemize}
+\section{Error Handling and Numeric Error Matrix}
+
+To achieve a deterministic compilation and verification pipeline, the error system maps failures to a distinct numeric series. 
+
+\begin{itemize}
+    \item \textbf{\texttt{ERR\_100} Series (Syntax Errors):} Intercepted during the lexical scanning or parsing phase. These occur when the token sequence does not match the EBNF grammar. 
+    \item \textbf{\texttt{ERR\_200} Series (Semantic Errors):} Intercepted during the circuit graph construction phase. These occur when the code layout is grammatically correct, but represents an impossible or conflicting physical logic setup.
+\end{itemize}
+
+\subsection{Reporting and Panic Recovery Mechanics}
+When a parsing exception occurs, the system logs the error line number, outputs the raw string text, and displays a visual caret marker (\texttt{\^{}}) beneath the offending column position before printing the respective indexed error string.
+
+\begin{verbatim}
+DEVICES:
+  G1 NAND 2;
+     ^
+*** Syntax Error 106: Missing or invalid assignment symbol. Expected '=' operator.
+\end{verbatim}
+
+If any syntax or semantic error is found, parsing fails and the simulator will not run. The parser will skip tokens until it reaches a safe recovery point. Recovery
+points include semicolons, block-ending keywords, and end of file, but the network will only be executed if no errors are
+detected. This isolates individual statement failures and allows the compiler to detect and report multiple independent layout bugs during a single execution run. 
+
+A complete, exhaustive index containing every syntax and semantic error code used by the system is documented in \textbf{Appendix A}.
+
+\section{Example Definition Files}
+
+\subsection{Example 1: NAND Latch}
+
+This example describes a cross-coupled NAND latch. Two switches provide the
+external inputs and the outputs of the two NAND gates are monitored.
+
+\begin{verbatim}
+DEVICES:
+  SW1 = SWITCH 0;
+  SW2 = SWITCH 0;
+  G1 = NAND 2;
+  G2 = NAND 2;
+DEVICES END;
+
+CONNECT:
+  SW1 = G1.1;
+  SW2 = G2.2;
+  G1 = G2.1;
+  G2 = G1.2;
+CONNECT END;
+
+MONITOR:
+  G1;
+  G2;
+MONITOR END;
+
+END
+\end{verbatim}
+
+Diagram:
+
+\begin{verbatim}
+        +---------+                 +---------+
+SW1 --->| G1 NAND |---- G1 -------->| G2.1    |
+        | 1     2 |                 | NAND    |---- G2
+G2  --->|         |                 | 2       |
+        +---------+                 +---------+
+                                           ^
+                                           |
+                                          SW2
+
+Monitor points: G1 and G2
+\end{verbatim}
+
+\subsection{Example 2: Clocked D-Type Circuit}
+
+This example uses a \texttt{DTYPE} device, three switches, and one clock. It
+demonstrates named input pins and named output pins.
+
+\begin{verbatim}
+DEVICES:
+  DATA = SWITCH 0;
+  SETSW = SWITCH 0;
+  CLRSW = SWITCH 0;
+  CLK1 = CLOCK 2;
+  D1 = DTYPE;
+DEVICES END;
+
+CONNECT:
+  DATA = D1.DATA;
+  CLK1 = D1.CLK;
+  SETSW = D1.SET;
+  CLRSW = D1.CLEAR;
+CONNECT END;
+
+MONITOR:
+  D1.Q;
+  D1.QBAR;
+  CLK1;
+MONITOR END;
+
+END
+\end{verbatim}
+
+Diagram:
+
+\begin{verbatim}
+DATA  ----------------> DATA        Q -----> monitor D1.Q
+CLK1  ----------------> CLK     +-------+
+SETSW ----------------> SET     | DTYPE |
+CLRSW ----------------> CLEAR   +-------+
+                                  QBAR --> monitor D1.QBAR
+
+CLK1 has half-period 2 and is also monitored.
+\end{verbatim}
+
+\section{Conclusion}
+
+The proposed language gives a clear overall structure for logic definition
+files while leaving device-specific validity checks to semantic analysis. This
+keeps the grammar compact and allows the parser to report useful errors for
+invalid devices, parameters, pins, connections, imports, and monitor points.
+The next stage of the project will be to implement the names, scanner, parser,
+and GUI modules using this specification.
+
+\newpage
+\appendix
+\section{Exhaustive Errors Reference Matrix}
+
+The following master directory catalogues every syntax and semantic exception handled by the simulator's parsing and compilation engine.
+
+\begin{longtable}{llp{8.2cm}}
+\caption{Complete Compiler and Validation Error Index} \label{tab:appendix_errors} \\
+\toprule
+\textbf{Error Code} & \textbf{Type} & \textbf{Formatted System Error Message String} \\
+\midrule
+\endhead
+
+\bottomrule
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+\texttt{ERR\_101} & Syntax   & \texttt{*** Error 101: Unexpected end of file encountered before global 'END' sentinel.} \\ \addlinespace
+\texttt{ERR\_102} & Syntax   & \texttt{*** Error 102: Missing or misplaced character. Expected a trailing semicolon ';'.} \\ \addlinespace
+\texttt{ERR\_103} & Syntax   & \texttt{*** Error 103: Malformed block header. Expected a colon ':' following block declarations.} \\ \addlinespace
+\texttt{ERR\_104} & Syntax   & \texttt{*** Error 104: Block termination mismatch. Missing or malformed '<BLOCKNAME> END' clause.} \\ \addlinespace
+\texttt{ERR\_105} & Syntax   & \texttt{*** Error 105: Out-of-order block sequence structural arrangement declaration.} \\ \addlinespace
+\texttt{ERR\_106} & Syntax   & \texttt{*** Error 106: Missing or invalid assignment symbol. Expected '=' operator.} \\ \addlinespace
+\texttt{ERR\_107} & Syntax   & \texttt{*** Error 107: Expected a valid device parameter or configuration state integer.} \\ \addlinespace
+\texttt{ERR\_108} & Syntax   & \texttt{*** Error 108: Missing file mapping path assignment direction. Expected 'FROM' keyword.} \\ \addlinespace
+\texttt{ERR\_109} & Syntax   & \texttt{*** Error 109: Malformed character string. Paths must be wrapped in matching double quotes '"'.} \\ \addlinespace
+\texttt{ERR\_110} & Syntax   & \texttt{*** Error 110: Invalid alphanumeric token layout format intercepted by Lexical Scanner.} \\ \addlinespace
+\texttt{ERR\_111} & Syntax   & \texttt{*** Error 111: Floating parameter token or syntax debris detected trailing statement lines.} \\ \addlinespace
+\texttt{ERR\_112} & Syntax   & \texttt{*** Error 112: Missing or malformed 'INPUT\_PORTS' declaration block in sub-circuit file.} \\ \addlinespace
+\texttt{ERR\_113} & Syntax   & \texttt{*** Error 113: Missing or malformed 'OUTPUT\_PORTS' declaration block in sub-circuit file.} \\ \midrule
+
+\texttt{ERR\_201} & Semantic & \texttt{*** Error 201: Illegal type definition. Custom names cannot overwrite system primitives.} \\ \addlinespace
+\texttt{ERR\_202} & Semantic & \texttt{*** Error 202: Duplicate custom type import registration path attempted.} \\ \addlinespace
+\texttt{ERR\_203} & Semantic & \texttt{*** Error 203: Target blueprint layout file path could not be resolved by the workspace.} \\ \addlinespace
+\texttt{ERR\_204} & Semantic & \texttt{*** Error 204: Child macro file compilation aborted due to nested syntax or semantic errors.} \\ \addlinespace
+\texttt{ERR\_205} & Semantic & \texttt{*** Error 205: Duplicate component instance declaration. Device string identifier already active.} \\ \addlinespace
+\texttt{ERR\_206} & Semantic & \texttt{*** Error 206: Unknown or unregistered device type configuration identifier mapping.} \\ \addlinespace
+\texttt{ERR\_207} & Semantic & \texttt{*** Error 207: Component pin allocation constraints out-of-bounds. Primitives require 1-16 inputs.} \\ \addlinespace
+\texttt{ERR\_208} & Semantic & \texttt{*** Error 208: Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1.} \\ \addlinespace
+\texttt{ERR\_209} & Semantic & \texttt{*** Error 209: Invalid timing parameter properties. CLOCK frequencies must be positive non-zero integers.} \\ \addlinespace
+\texttt{ERR\_210} & Semantic & \texttt{*** Error 210: Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments.} \\ \addlinespace
+\texttt{ERR\_211} & Semantic & \texttt{*** Error 211: Unresolved line routing assignment. Device identifier referenced was never initialized.} \\ \addlinespace
+\texttt{ERR\_212} & Semantic & \texttt{*** Error 212: Invalid input port identifier. Pin does not exist on this component type.} \\ \addlinespace
+\texttt{ERR\_213} & Semantic & \texttt{*** Error 213: Invalid output port identifier. Pin does not exist on this component type.} \\ \addlinespace
+\texttt{ERR\_214} & Semantic & \texttt{*** Error 214: Missing terminal pin qualifier. Primitives or macro blocks require explicit dot syntax.} \\ \addlinespace
+\texttt{ERR\_215} & Semantic & \texttt{*** Error 215: Port fan-in constraint violation. Target input pin port already driven by an output source.} \\ \addlinespace
+\texttt{ERR\_216} & Semantic & \texttt{*** Error 216: Directional typing error. Signal linkages must traverse strictly from Output to Input ports.} \\ \addlinespace
+\texttt{ERR\_217} & Semantic & \texttt{*** Error 217: Macro interface typing mismatch. Child input/output port directionality has been flipped.} \\ \addlinespace
+\texttt{ERR\_218} & Semantic & \texttt{*** Error 218: Cannot track diagnostics trace loop target. Component node is not a valid output line.} \\ \addlinespace
+\texttt{ERR\_219} & Semantic & \texttt{*** Error 219: Duplicate monitor trace instruction targeting identical terminal routes.} \\ \addlinespace
+\texttt{ERR\_220} & Semantic & \texttt{*** Error 220: Open Circuit Warning. Network structural synthesis layout contains unconnected input gates.} \\ \addlinespace
+\texttt{ERR\_221} & Semantic & \texttt{*** Error 221: Circular dependency chain detected in file import statements.} \\ \addlinespace
+\texttt{ERR\_222} & Semantic & \texttt{*** Error 222: Interface boundary mismatch. Port referenced in main layout does not exist on imported macro.} \\
+
+\end{longtable}
+
+\end{document}
