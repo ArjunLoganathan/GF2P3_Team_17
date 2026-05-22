@@ -116,11 +116,13 @@ class Parser:
         
         self.symbol = self.scanner.get_symbol()
 
+        # Expect the 'FROM' keyword as a bridge operator
         if self.symbol.type == self.scanner.KEYWORD and self.symbol.id == self.names.query("FROM"):
             self.symbol = self.scanner.get_symbol()
         else:
             self.report_error("ERR_108", "Missing file destination bridge operator. Expected 'FROM' keyword.")
 
+        # Expect a string literal representing the file path
         if self.symbol.type == self.scanner.STRING:
             file_path_str = self.names.get_string(self.symbol.id)
             self.custom_types[custom_name_id] = file_path_str
@@ -128,6 +130,12 @@ class Parser:
         else:
             self.report_error("ERR_109", "Malformed sub-circuit path string. Target file must be enclosed in double quotes.")
 
+        # Expect a semicolon to terminate the import statement
+        if self.symbol.type == self.scanner.SEMICOLON:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_102", "Missing or misplaced termination character. Expected a semicolon ';'.")
+            self.panic_recover([self.scanner.SEMICOLON, self.scanner.KEYWORD])
     
     def parse_devices_block(self):
         """Parse the mandatory Devices block."""
