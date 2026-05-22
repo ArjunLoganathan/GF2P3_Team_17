@@ -225,20 +225,14 @@ class Network:
         Return True if successful.
         """
         device = self.devices.get_device(device_id)
+        input_signal_list = []
+
+        # Validate that all inputs are connected and fetch signals
         for input_id in device.inputs:
             input_signal = self.get_input_signal(device_id, input_id)
             if input_signal is None:  # this input is unconnected
                 return False
-
-        input_signal_list = []
-        for input_id in device.inputs:
-            input_signal = self.get_input_signal(device_id, input_id)
             input_signal_list.append(input_signal)
-            if device.device_kind != self.devices.XOR:
-                if input_signal != x:
-                    output_signal = self.invert_signal(y)
-                    break
-                output_signal = y
 
         if device.device_kind == self.devices.XOR:
             # Output is high only if both inputs are different
@@ -246,8 +240,13 @@ class Network:
                 output_signal = self.devices.LOW
             else:
                 output_signal = self.devices.HIGH
+        else:
+            output_signal = y
+            for input_signal in input_signal_list:
+                if input_signal != x:
+                    output_signal = self.invert_signal(y)
+                    break
 
-        # Update and store the new signal
         signal = self.get_output_signal(device_id, None)
         target = output_signal
         updated_signal = self.update_signal(signal, target)
@@ -287,9 +286,9 @@ class Network:
         if clear_signal == self.devices.HIGH:
             device.dtype_memory = self.devices.LOW
 
-        if self.devices.Q_ID not in device.outputs:
-            if self.devices.QBAR_ID not in device.outputs:
-                return False
+        if self.devices.Q_ID not in device.outputs or self.devices.QBAR_ID not in device.outputs:
+            return False
+            
         Q_signal = device.outputs[self.devices.Q_ID]
         QBAR_signal = device.outputs[self.devices.QBAR_ID]
 
@@ -360,6 +359,7 @@ class Network:
         nand_devices = self.devices.find_devices(self.devices.NAND)
         nor_devices = self.devices.find_devices(self.devices.NOR)
         xor_devices = self.devices.find_devices(self.devices.XOR)
+        not_devices = self.devices.find_devices(self.devices.NOT)  
 
         # This sets clock signals to RISING or FALLING, where necessary
         self.update_clocks()
@@ -403,6 +403,12 @@ class Network:
             for device_id in xor_devices:  # execute XOR devices
                 if not self.execute_gate(device_id, None, None):
                     return False
+            for device_id in not_devices:  # execute NOT devices
+                if not self.execute_gate(device_id, self.devices.HIGH,
+                                         self.devices.LOW):
+                    return False
+                    
             if self.steady_state:
                 break
+                
         return self.steady_state
