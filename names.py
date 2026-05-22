@@ -41,6 +41,8 @@ class Names:
     def __init__(self):
         """Initialise names list."""
         self.error_code_count = 0  # how many error codes have been declared
+        self.name_id_strings = []
+        self.name_id_mapping = {}
 
     def unique_error_codes(self, num_error_codes):
         """Return a list of unique integer error codes."""
@@ -60,10 +62,24 @@ class Names:
         """Return a list of name IDs for each name string in name_string_list.
 
         If the name string is not present in the names list, add it.
+
+        Expects names in name_string_list: letter, {letter | digit}
+        Maybe check this in the function as redundancy? 
         """
+        name_ids = []
+        for name in name_string_list:
+            if name in self.name_id_strings:
+                name_ids.append(self.name_id_mapping[name])
+            else:
+                name_ids.append(len(self.name_id_strings))
+                self.name_id_mapping[name] = len(self.name_id_strings)
+                self.name_id_strings.append(name)
+        return name_ids
+
 
     def get_name_string(self, name_id):
         """Return the corresponding name string for name_id.
 
         If the name_id is not an index in the names list, return None.
         """
+        

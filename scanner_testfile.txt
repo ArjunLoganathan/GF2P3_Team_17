@@ -1,0 +1,16 @@
+DEVICES:
+    SW1 = SWITCH 0;
+    SW2 = SWITCH 0;
+    G1 = NAND 2;
+    G2 = NAND 2;
+DEVICES END;
+CONNECT:
+    SW1 = G1.1;
+    SW2 = G2.2;
+    G1 = G2.1;
+    G2 = G1.2;
+CONNECT END;
+MONITOR:
+    G1;
+    G2;
+MONITOR END;
