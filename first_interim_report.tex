@@ -44,22 +44,17 @@ to explain invalid circuits.
 
 \section{Teamwork Planning}
 
-The team divided the first interim work into three parallel tasks.
+The team divided the work into three parallel tasks.
 
 \begin{itemize}
-    \item \textbf{Person A: Language syntax and scanner planning.}
-    This person is responsible for the EBNF grammar, reserved words,
-    punctuation, comments, whitespace handling, and scanner token decisions.
+    \item \textbf{Person A: Language, scanner, and names}
+    This person is responsible for names.py, scanner.py, leads the EBNF syntax section for the first interim report, and writes the scanner/names pytest test.
 
-    \item \textbf{Person B: Semantics and error handling.}
-    This person is responsible for defining semantic constraints, identifying
-    semantic errors, and specifying how syntax and semantic errors will be
-    reported.
+    \item \textbf{Person B: Parser and network construction}
+    This person is responsible for parser syntax, and semantic checks and calls to `Devices`, `Network`, and `Monitors`. He also leads semantic error list and error handling section of the first interim report, and writing parser tests using good and bad definition files.
 
-    \item \textbf{Person C: Examples, diagrams, and report assembly.}
-    This person is responsible for writing example definition files, drawing
-    circuit diagrams, assembling the report, and checking consistency between
-    the examples, grammar, and semantic rules.
+    \item \textbf{Person C: GUI, integration, and release packaging}
+    This person is responsible for gui.py, implementing run, continue, switch setting, monitor add/remove, quit, and waveform display. He also leads integration testing, definition examples, screenshots, packaging, and Writing manual GUI test checklist and help prepare final folder/zip submissions.
 \end{itemize}
 
 The team will review the language together before implementation begins. This
