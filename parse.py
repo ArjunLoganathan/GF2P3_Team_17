@@ -47,13 +47,13 @@ class Parser:
         # Counter tracking syntax and semantic error tallies
         self.error_count = 0
 
-        # Cache IDs for reserved system keywords/primitives to speed up parsing
+        # Cache IDs for primitives
         self.primitive_keywords = [
             "SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR", "XOR", "NOT", "DTYPE"
         ]
         self.primitive_ids = [self.names.query(kw) for kw in self.primitive_keywords]
 
-        # Local registry for valid imported sub-circuit macro bindings
+        # Local registry for valid imports
         self.custom_types = {}
 
 
@@ -96,3 +96,58 @@ class Parser:
                 self.report_error("ERR_220", "Critical Open Circuit Warning: Floating, unconnected inputs exist.")
 
         return self.error_count == 0  # Return True if no errors were found, False otherwise
+    
+    def parse_imports_block(self):
+        """Parse the optional Imports block."""
+        custom_name_id = self.symbol.id  # Cache the custom type name ID
+        custom_name_str = self.names.get_string(custom_name_id)  # Get the string representation for error messages
+
+        # Check for reserved primitive keyword conflicts
+        if custom_name_id in self.primitive_ids or custom_name_str in self.primitive_keywords:
+            self.report_error("ERR_201", f"Illegal type definition: '{custom_name_str}' is a reserved primitive keyword.")
+            self.panic_recover([self.scanner.SEMICOLON])
+            return
+        
+        # Check for duplicate custom type registrations
+        if custom_name_id in self.custom_types:
+            self.report_error("ERR_202", f"Duplicate custom type path registration attempted for '{custom_name_str}'.")
+            self.panic_recover([self.scanner.SEMICOLON])
+            return
+        
+        self.symbol = self.scanner.get_symbol()
+
+        if self.symbol.type == self.scanner.KEYWORD and self.symbol.id == self.names.query("FROM"):
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_108", "Missing file destination bridge operator. Expected 'FROM' keyword.")
+
+        if self.symbol.type == self.scanner.STRING:
+            file_path_str = self.names.get_string(self.symbol.id)
+            self.custom_types[custom_name_id] = file_path_str
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_109", "Malformed sub-circuit path string. Target file must be enclosed in double quotes.")
+
+    
+    def parse_devices_block(self):
+        """Parse the mandatory Devices block."""
+        # Implementation of device parsing logic goes here
+        pass
+
+    def parse_connections_block(self):
+        """Parse the mandatory Connections block."""
+        # Implementation of connection parsing logic goes here
+        pass
+
+    def parse_monitors_block(self):
+        """Parse the mandatory Monitors block."""
+        # Implementation of monitor parsing logic goes here
+        pass
+
+    def report_error(self, code_tag, specific_details=""):
+        """Report an error with a specific code and message."""
+        pass
+    
+    def panic_recover(self, stop_tokens):
+        """Panic mode error recovery: skip symbols until a sync token is found."""
+        pass
