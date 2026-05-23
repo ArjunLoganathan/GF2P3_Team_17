@@ -67,10 +67,7 @@ class Scanner:
         self.current_symbol.id = symbol_id
         if symbol_id in self.reservered_keyword_ids:
             self.current_symbol.type = TokenType.KEYWORD
-            
-
-        
-
+        return self.current_symbol
 
     def open_file(self):
         """Open and return the file specified by path.
