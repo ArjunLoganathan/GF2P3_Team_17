@@ -183,8 +183,7 @@ newline. This is used only inside quoted import paths.
 \subsection{Comments and Whitespace}
 
 Comments are handled by the scanner and are therefore not part of the formal
-grammar. A comment begins with \texttt{\#} and continues to the end of the
-current line.
+grammar. Comments will be intercepted and dismissed by the scanner. A comment begins with \textbackslash* and ends with *\textbackslash. 
 
 \begin{verbatim}
 G1 = NAND 2; # two-input NAND gate
@@ -477,7 +476,7 @@ The following master directory catalogues every syntax and semantic exception ha
 \texttt{ERR\_217} & Semantic & \texttt{*** Error 217: Macro interface typing mismatch. Child input/output port directionality has been flipped.} \\ \addlinespace
 \texttt{ERR\_218} & Semantic & \texttt{*** Error 218: Cannot track diagnostics trace loop target. Component node is not a valid output line.} \\ \addlinespace
 \texttt{ERR\_219} & Semantic & \texttt{*** Error 219: Duplicate monitor trace instruction targeting identical terminal routes.} \\ \addlinespace
-\texttt{ERR\_220} & Semantic & \texttt{*** Error 220: Open Circuit Warning. Network structural synthesis layout contains unconnected input gates.} \\ \addlinespace
+\texttt{ERR\_220} & Semantic & \texttt{*** Error 220: Open Circuit Error. Network structural synthesis layout contains unconnected input gates.} \\ \addlinespace
 \texttt{ERR\_221} & Semantic & \texttt{*** Error 221: Circular dependency chain detected in file import statements.} \\ \addlinespace
 \texttt{ERR\_222} & Semantic & \texttt{*** Error 222: Interface boundary mismatch. Port referenced in main layout does not exist on imported macro.} \\
 
