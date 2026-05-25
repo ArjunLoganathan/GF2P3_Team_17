@@ -65,8 +65,12 @@ class Parser:
         ]
         self.primitive_ids = [self.names.query(kw) for kw in self.primitive_keywords]
 
-        # Local registry for valid imports
-        self.custom_types = {}
+        # Macro flattening tracking structures
+        self.custom_types = {}        # {type_name_id: SubCircuitBlueprint}
+        self.instantiated_types = {}   # {instance_device_id_or_path_id: type_name_id}
+        self.active_import_paths = []  # Dependency stack to catch circular recursion loops
+        self.is_blueprint_mode = False # True if parsing an external file asset
+        self.current_blueprint = None  # Reference to target template wrapper being built
 
 
     def parse_network(self):
@@ -149,14 +153,14 @@ class Parser:
 
         # Semantic verification: Custom names cannot overwrite system primitives
         if custom_name_id in self.primitive_ids or custom_string in self.primitive_keywords:
-            self.report_error("ERR_201", f"Illegal type definition: '{custom_string}' is a reserved primitive keyword.")
-            self.panic_recover([self.scanner.SEMICOLON])
+            self.report_error("ERR_201", f"Illegal type definition. Custom names cannot overwrite system primitives. Key: '{custom_string}'")
+            self.panic_recover([TokenType.SEMICOLON])
             return
 
         # Semantic verification: Check for duplicate macro bindings
         if custom_name_id in self.custom_types:
-            self.report_error("ERR_202", f"Duplicate custom type path registration attempted for '{custom_string}'.")
-            self.panic_recover([self.scanner.SEMICOLON])
+            self.report_error("ERR_202", f"Duplicate custom type import registration path attempted for '{custom_string}'.")
+            self.panic_recover([TokenType.SEMICOLON])
             return
 
         self.symbol = self.scanner.get_symbol()
@@ -164,28 +168,27 @@ class Parser:
         if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("FROM"):
             self.symbol = self.scanner.get_symbol()
         else:
-            self.report_error("ERR_108", "Missing file destination bridge operator. Expected 'FROM' keyword.")
+            self.report_error("ERR_108", "Missing file mapping path assignment direction. Expected 'FROM' keyword.")
 
         if self.symbol.type == TokenType.STRING:
             file_path_raw = self.names.get_string(self.symbol.id)
-            # Normalize to clean string literals if scanner extracts literal raw quotes
             file_path_str = file_path_raw.strip('"\'')
             self.symbol = self.scanner.get_symbol()
         else:
-            self.report_error("ERR_109", "Malformed sub-circuit path string. Target file must be enclosed in double quotes.")
+            self.report_error("ERR_109", "Malformed character string. Paths must be wrapped in matching double quotes '\"'.")
             file_path_str = None
 
         if self.symbol.type == TokenType.SEMICOLON:
             self.symbol = self.scanner.get_symbol()
         else:
-            self.report_error("ERR_102", "Missing or misplaced termination character. Expected a semicolon ';'.")
-            self.panic_recover([self.scanner.SEMICOLON, self.scanner.KEYWORD])
+            self.report_error("ERR_102", "Missing or misplaced character. Expected a trailing semicolon ';'.")
+            self.panic_recover([TokenType.SEMICOLON, TokenType.KEYWORD])
 
-        # Execute recursive blueprint subcompilation if path tracking passed checks
+        # Execute recursive blueprint sub-compilation if path tracking passed checks
         if file_path_str and self.error_count == 0:
             abs_path = os.path.abspath(file_path_str)
             if abs_path in self.active_import_paths:
-                self.report_error("ERR_221", f"Circular dependency block encountered loading asset mapping: '{file_path_str}'.")
+                self.report_error("ERR_221", f"Circular dependency chain detected in file import statements for: '{file_path_str}'.")
                 return
 
             blueprint = self.compile_blueprint_file(abs_path)
@@ -218,14 +221,224 @@ class Parser:
     
     def parse_devices_block(self):
         """Parse the mandatory Devices block."""
-        # Implementation of device parsing logic goes here
-        pass
+        devices_id = self.names.query("DEVICES")
+        end_id = self.names.query("END")
+
+        self.symbol = self.scanner.get_symbol()  # Consume 'DEVICES'
+        
+        if self.symbol.type == TokenType.COLON:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_103", "Malformed block header. Expected a colon ':' following block declarations.")
+
+        while self.symbol.type == TokenType.NAME:
+            self.parse_device_declaration()
+
+        if self.symbol.type == TokenType.KEYWORD and self.symbol.id == devices_id:
+            self.symbol = self.scanner.get_symbol()
+            if self.symbol.type == TokenType.KEYWORD and self.symbol.id == end_id:
+                self.symbol = self.scanner.get_symbol()
+                if self.symbol.type == TokenType.SEMICOLON:
+                    self.symbol = self.scanner.get_symbol()
+                else:
+                    self.report_error("ERR_102", "Missing or misplaced character. Expected a trailing semicolon ';'.")
+            else:
+                self.report_error("ERR_104", "Block termination mismatch. Missing or malformed 'DEVICES END' clause.")
+        else:
+            self.report_error("ERR_104", "Block termination mismatch. Missing or malformed 'DEVICES END' clause.")
+
+    def parse_device_declaration(self, prefix=""):
+        """Instantiate logic device modules onto the internal simulator structure engine."""
+        device_name_id = self.symbol.id
+        device_name_str = self.names.get_string(device_name_id)
+        
+        scoped_name_str = f"{prefix}.{device_name_str}" if prefix else device_name_str
+        scoped_name_id = self.names.lookup([scoped_name_str])[0]
+        
+        self.symbol = self.scanner.get_symbol()
+
+        if self.symbol.type == TokenType.EQUALS:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_106", f"Missing or invalid assignment symbol. Expected '=' operator on '{device_name_str}'.")
+
+        device_type_id = None
+        is_primitive = False
+
+        if self.symbol.type == TokenType.KEYWORD and self.symbol.id in self.primitive_ids:
+            device_type_id = self.symbol.id
+            is_primitive = True
+            self.symbol = self.scanner.get_symbol()
+        elif self.symbol.type == TokenType.NAME and self.symbol.id in self.custom_types:
+            device_type_id = self.symbol.id
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_206", f"Unknown or unregistered device type configuration identifier mapping: '{device_name_str}'.")
+            self.panic_recover([TokenType.SEMICOLON])
+            return
+
+        parameter_val = None
+        if self.symbol.type == TokenType.NUMBER:
+            parameter_val = int(self.names.get_string(self.symbol.id))
+            self.symbol = self.scanner.get_symbol()
+            if not is_primitive:
+                self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments. (Or custom macro '{device_name_str}')")
+        else:
+            # Enforce required parameters for structural primitives that expect them
+            if is_primitive:
+                type_str = self.names.get_string(device_type_id)
+                if type_str in ["SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR"]:
+                    self.report_error("ERR_107", "Expected a valid device parameter or configuration state integer.")
+
+        if self.error_count == 0:
+            if self.is_blueprint_mode:
+                self.current_blueprint.devices.append((device_name_str, device_type_id, parameter_val))
+            else:
+                if not is_primitive:
+                    self.instantiated_types[scoped_name_id] = device_type_id
+                    self.flatten_macro_to_hardware(scoped_name_str, device_type_id)
+                else:
+                    type_str = self.names.get_string(device_type_id)
+                    
+                    if type_str == "SWITCH" and (parameter_val is None or parameter_val not in [0, 1]):
+                        self.report_error("ERR_208", f"Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1 on '{device_name_str}'.")
+                    elif type_str == "CLOCK" and (parameter_val is None or parameter_val <= 0):
+                        self.report_error("ERR_209", f"Invalid timing parameter properties. CLOCK frequencies must be positive non-zero integers on '{device_name_str}'.")
+                    elif type_str in ["AND", "OR", "NAND", "NOR"] and (parameter_val is None or not (1 <= parameter_val <= 16)):
+                        self.report_error("ERR_207", f"Component pin allocation constraints out-of-bounds. Primitives require 1-16 inputs on '{device_name_str}'.")
+                    elif type_str in ["XOR", "NOT", "DTYPE"] and parameter_val is not None:
+                        self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments.")
+
+                    make_error = self.devices.make_device(scoped_name_id, device_type_id, parameter_val)
+                    if make_error != self.devices.NO_ERROR:
+                        if make_error == self.devices.DEVICE_PRESENT:
+                            self.report_error("ERR_205", f"Duplicate component instance declaration. Device string identifier already active: '{device_name_str}'.")
+                        else:
+                            self.report_error("ERR_110", f"Invalid alphanumeric token layout format intercepted by Lexical Scanner during initialization of '{device_name_str}'.")
+
+        if self.symbol.type == TokenType.SEMICOLON:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_102", f"Missing or misplaced character. Expected a trailing semicolon ';' at the end of declaration for '{device_name_str}'.")
+            self.panic_recover([TokenType.SEMICOLON, TokenType.KEYWORD])
+
+    def flatten_macro_to_hardware(self, instance_prefix, type_id):
+        """Unroll macro blueprints down into flat primitive hardware elements recursively."""
+        macro_blueprint = self.custom_types[type_id]
+
+        for inner_dev_name, inner_type_id, inner_prop in macro_blueprint.devices:
+            combined_name_str = f"{instance_prefix}.{inner_dev_name}"
+            combined_name_id = self.names.lookup([combined_name_str])[0]
+            
+            if inner_type_id in self.custom_types:
+                self.instantiated_types[combined_name_id] = inner_type_id
+                self.flatten_macro_to_hardware(combined_name_str, inner_type_id)
+            else:
+                self.devices.make_device(combined_name_id, inner_type_id, inner_prop)
+
+        for src_dev, src_p, dest_dev, dest_p in macro_blueprint.connections:
+            flat_src_dev = f"{instance_prefix}.{src_dev}"
+            flat_dest_dev = f"{instance_prefix}.{dest_dev}"
+            self.resolve_and_connect_nodes(flat_src_dev, src_p, flat_dest_dev, dest_p)
 
     def parse_connections_block(self):
         """Parse the mandatory Connections block."""
         # Implementation of connection parsing logic goes here
         pass
+    
+    def parse_connection_rule(self):
+        """Parse an individual connection rule."""
+        out_dev_str, out_pin_str = self.parse_composite_signal_path()
 
+        if self.symbol.type == TokenType.EQUALS:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_106", "Missing or invalid assignment symbol. Expected '=' operator.")
+
+        in_dev_str, in_pin_str = self.parse_composite_signal_path()
+
+        if self.error_count == 0 and out_dev_str and in_dev_str:
+            if self.is_blueprint_mode:
+                self.current_blueprint.connections.append((out_dev_str, out_pin_str, in_dev_str, in_pin_str))
+            else:
+                self.resolve_and_connect_nodes(out_dev_str, out_pin_str, in_dev_str, in_pin_str)
+
+        if self.symbol.type == TokenType.SEMICOLON:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_102", "Missing or misplaced character. Expected a trailing semicolon ';'.")
+            self.panic_recover([TokenType.SEMICOLON, TokenType.KEYWORD])
+
+    def parse_composite_signal_path(self):
+        """Extract flat or multidot namespace path chains."""
+        segments = []
+        while True:
+            if self.symbol.type not in [TokenType.NAME, TokenType.NUMBER]:
+                self.report_error("ERR_110", "Invalid alphanumeric token layout format intercepted by Lexical Scanner.")
+                return None, None
+            
+            segments.append(self.names.get_string(self.symbol.id))
+            self.symbol = self.scanner.get_symbol()
+            
+            if self.symbol.type == TokenType.DOT:
+                self.symbol = self.scanner.get_symbol()
+                continue
+            break
+
+        if len(segments) == 1:
+            return segments[0], None
+        else:
+            return ".".join(segments[:-1]), segments[-1]
+    
+    def resolve_and_connect_nodes(self, src_dev_path, src_port, dest_dev_path, dest_port):
+        """Trace macro interface connection chains to link inner primitive paths directly."""
+        final_src_dev, final_src_port = self.trace_to_primitive_node(src_dev_path, src_port)
+        final_dest_dev, final_dest_port = self.trace_to_primitive_node(dest_dev_path, dest_port)
+
+        src_id = self.network.devices.get_device_id(final_src_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_src_dev)
+        dest_id = self.network.devices.get_device_id(final_dest_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_dest_dev)
+        
+        if not src_id or not dest_id:
+            self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
+            return
+
+        src_port_id = self.names.query(final_src_port) if final_src_port else None
+        dest_port_id = self.names.query(final_dest_port) if final_dest_port else None
+
+        net_error = self.network.make_connection(src_id, src_port_id, dest_id, dest_port_id)
+        if net_error != self.network.NO_ERROR:
+            if net_error == self.network.INPUT_CONNECTED:
+                self.report_error("ERR_215", f"Port fan-in constraint violation. Target input pin port already driven by an output source.")
+            elif net_error in [self.network.DEVICE_ABSENT, self.network.INPUT_ABSENT, self.network.OUTPUT_ABSENT]:
+                # Distinguish pin-level non-existence semantics
+                if net_error == self.network.INPUT_ABSENT:
+                    self.report_error("ERR_212", f"Invalid input port identifier. Pin '{final_dest_port}' does not exist on component '{final_dest_dev}'.")
+                elif net_error == self.network.OUTPUT_ABSENT:
+                    self.report_error("ERR_213", f"Invalid output port identifier. Pin '{final_src_port}' does not exist on component '{final_src_dev}'.")
+                else:
+                    self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
+            else:
+                self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
+    
+    def trace_to_primitive_node(self, dev_path, initial_port):
+        """Traverse structural container path steps to expose the inner flat target primitive node."""
+        parts = dev_path.split(".")
+        current_scope = ""
+        
+        for i, part in enumerate(parts):
+            current_scope = f"{current_scope}.{part}" if current_scope else part
+            scope_id = self.names.lookup([current_scope])[0]
+            
+            if scope_id in self.instantiated_types:
+                macro_type_id = self.instantiated_types[scope_id]
+                blueprint = self.custom_types[macro_type_id]
+                
+                remaining_path = ".".join(parts[i+1:])
+                internal_target_dev = f"{current_scope}.{remaining_path}" if remaining_path else current_scope
+                return internal_target_dev, initial_port
+
+        return dev_path, initial_port
+    
     def parse_monitors_block(self):
         """Parse the mandatory Monitors block."""
         # Implementation of monitor parsing logic goes here
