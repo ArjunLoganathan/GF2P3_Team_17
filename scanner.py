@@ -69,7 +69,8 @@ class Scanner:
         self.current_symbol.id = symbol_id
         if symbol_id in self.reservered_keyword_ids:
             self.current_symbol.type = TokenType.KEYWORD
-
+        else:
+            self.current_symbol.type = self.regexMatch(next_symbols[0])
         return self.current_symbol
 
     def open_file(self):
@@ -124,8 +125,7 @@ class Scanner:
             return TokenType.EOF
 
         number_regex = re.compile(r"^\d+")
-        device_name_regex = re.compile(r"^[a-zA-Z][a-zA-Z0-9]+")
-        pin_name_regex = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9]+")
+        name_regex = re.compile(r"^[a-zA-Z0-9]+")
         
         colon_regex = re.compile(r"^\:")
         eol_regex = re.compile(r"^\;")
@@ -145,8 +145,6 @@ class Scanner:
             return TokenType.STRING
         elif re.match(number_regex, text):
             return TokenType.NUMBER
-        elif re.match(device_name_regex, text):
-            return TokenType.DEVICE_NAME
-        elif re.match(pin_name_regex, text):
-            return TokenType.PIN_NAME            
+        elif re.match(name_regex, text):
+            return TokenType.NAME            
         return TokenType.INVALID
