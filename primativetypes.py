@@ -2,8 +2,7 @@ from enum import Enum, auto
 
 class TokenType(Enum):
     KEYWORD = auto()
-    PIN_NAME = auto()
-    DEVICE_NAME = auto()
+    NAME = auto()
     NUMBER = auto()
     STRING = auto()
     COLON = auto()

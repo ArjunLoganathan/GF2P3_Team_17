@@ -9,6 +9,8 @@ Scanner - reads definition file and translates characters into symbols.
 Symbol - encapsulates a symbol and stores its properties.
 """
 from primativetypes import TokenType
+import regex as re
+
 
 class Symbol:
 
@@ -67,6 +69,8 @@ class Scanner:
         self.current_symbol.id = symbol_id
         if symbol_id in self.reservered_keyword_ids:
             self.current_symbol.type = TokenType.KEYWORD
+        else:
+            self.current_symbol.type = self.regexMatch(next_symbols[0])
         return self.current_symbol
 
     def open_file(self):
@@ -115,3 +119,32 @@ class Scanner:
         except:
             # not sure when this will be called need to write tests for this
             raise Exception("dasdas")
+
+    def regexMatch(self, text):
+        if not text:
+            return TokenType.EOF
+
+        number_regex = re.compile(r"^\d+")
+        name_regex = re.compile(r"^[a-zA-Z0-9]+")
+        
+        colon_regex = re.compile(r"^\:")
+        eol_regex = re.compile(r"^\;")
+        dot_regex = re.compile(r"^\.")
+        equals_regex = re.compile(r"^\=")
+        string_regex = re.compile(r'^"[a-zA-Z0-9]+"') 
+
+        if re.match(colon_regex, text):
+            return TokenType.COLON
+        elif re.match(eol_regex, text):
+            return TokenType.SEMICOLON
+        elif re.match(dot_regex, text):
+            return TokenType.DOT
+        elif re.match(equals_regex, text):
+            return TokenType.EQUALS
+        elif re.match(string_regex, text):
+            return TokenType.STRING
+        elif re.match(number_regex, text):
+            return TokenType.NUMBER
+        elif re.match(name_regex, text):
+            return TokenType.NAME            
+        return TokenType.INVALID
