@@ -95,7 +95,7 @@ class Scanner:
         try:
             char = self.file.read(1)
             if char != "" and char.isspace():
-                return self.get_next_non_whitespace_character(self.file)
+                return self.get_next_non_whitespace_character()
             return char
         except:
             raise Exception(f"Exception - Error in non-whitespace reader!")
@@ -107,8 +107,8 @@ class Scanner:
         try:
             char = self.get_next_non_whitespace_character()
             while not char.isalnum():
-                if char == ";":
-                    return [None,";"]
+                if re.match("[\;\:\=]",char):
+                    return [None,char]
                 char = self.get_next_non_whitespace_character()
         
             temp_str = ""
