@@ -201,7 +201,7 @@ class Parser:
             self.report_error("ERR_203", f"Target custom macro path resource cannot be located: '{filepath}'.")
             return None
 
-        sub_scanner = Scanner(filepath)
+        sub_scanner = Scanner(filepath,self.names)
         sub_parser = Parser(self.names, self.devices, self.network, self.monitors, sub_scanner)
         
         sub_parser.custom_types = self.custom_types
