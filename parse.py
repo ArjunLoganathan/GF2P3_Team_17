@@ -81,17 +81,18 @@ class Parser:
         if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("IMPORT"):
             self.parse_imports_block()
         
-        if self.is_blueprint_mode:
-            if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("INPUT_PORTS"):
-                self.parse_interface_ports_block(is_input=True)
-            else:
-                self.report_error("ERR_112", "Missing or malformed 'INPUT_PORTS' declaration block in sub-circuit file.")
+        if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("INPUT_PORTS"):
+            self.parse_interface_ports_block(is_input=True)
+        elif self.is_blueprint_mode:
+            # Sub-circuit files MUST provide explicit entry boundary specifications
+            self.report_error("ERR_112", "Missing or malformed 'INPUT_PORTS' declaration block in sub-circuit file.")
 
-            if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("OUTPUT_PORTS"):
-                self.parse_interface_ports_block(is_input=False)
-            else:
-                self.report_error("ERR_113", "Missing or malformed 'OUTPUT_PORTS' declaration block in sub-circuit file.")
-
+        if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("OUTPUT_PORTS"):
+            self.parse_interface_ports_block(is_input=False)
+        elif self.is_blueprint_mode:
+            # Sub-circuit files MUST provide explicit exit boundary specifications
+            self.report_error("ERR_113", "Missing or malformed 'OUTPUT_PORTS' declaration block in sub-circuit file.")
+            
         # Mandatory Devices Block
         if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("DEVICES"):
             self.parse_devices_block()
@@ -104,12 +105,10 @@ class Parser:
         else:
             self.report_error("ERR_105", "Out-of-order block sequence structural arrangement declaration. Expected 'CONNECT:'.")
 
-        # Mandatory Monitors Block
+        # Optional Monitors Block
         if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("MONITOR"):
             self.parse_monitors_block()
-        else:
-            self.report_error("ERR_105", "Out-of-order block sequence structural arrangement declaration. Expected 'MONITOR:'.")
-        
+            
         # Global Document Terminator 'END'
         if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("END"):
             self.symbol = self.scanner.get_symbol()
@@ -332,7 +331,7 @@ class Parser:
             self.report_error("ERR_203", f"Target custom macro path resource cannot be located: '{filepath}'.")
             return None
 
-        sub_scanner = Scanner(filepath,self.names)
+        sub_scanner = Scanner(filepath, self.names)
         sub_parser = Parser(self.names, self.devices, self.network, self.monitors, sub_scanner)
         
         sub_parser.custom_types = self.custom_types
