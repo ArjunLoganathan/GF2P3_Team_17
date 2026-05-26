@@ -21,6 +21,8 @@ class SubCircuitBlueprint:
         self.devices = []
         # List of tuples: [(src_dev_str, src_port_str, dest_dev_str, dest_port_str), ...]
         self.connections = []
+        self.input_ports = set()   # Set of input port identifiers for validation
+        self.output_ports = set()  # Set of output port identifiers for validation
 
 class Parser:
 
@@ -74,11 +76,22 @@ class Parser:
 
 
     def parse_network(self):
-        """Parse the circuit definition file."""
+        """Parse the circuit definition file. Contains Errors[101, 105, 111, 112, 113, 220]"""
         # Optional Imports Block
         if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("IMPORT"):
             self.parse_imports_block()
         
+        if self.is_blueprint_mode:
+            if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("INPUT_PORTS"):
+                self.parse_interface_ports_block(is_input=True)
+            else:
+                self.report_error("ERR_112", "Missing or malformed 'INPUT_PORTS' declaration block in sub-circuit file.")
+
+            if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("OUTPUT_PORTS"):
+                self.parse_interface_ports_block(is_input=False)
+            else:
+                self.report_error("ERR_113", "Missing or malformed 'OUTPUT_PORTS' declaration block in sub-circuit file.")
+
         # Mandatory Devices Block
         if self.symbol.type == TokenType.KEYWORD and self.symbol.id == self.names.query("DEVICES"):
             self.parse_devices_block()
@@ -116,8 +129,126 @@ class Parser:
 
         return self.error_count == 0  # Return True if no errors were found, False otherwise
     
+    def parse_interface_ports_block(self, is_input=True):
+        """Parse INPUT_PORTS and OUTPUT_PORTS interface constraints for sub-circuit files. Contains Errors[102, 103, 104]"""
+        block_kw_str = "INPUT_PORTS" if is_input else "OUTPUT_PORTS"
+        block_id = self.names.query(block_kw_str)
+        end_id = self.names.query("END")
+
+        self.symbol = self.scanner.get_symbol() # Consume header keyword
+        
+        if self.symbol.type == TokenType.COLON:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_103", "Malformed block header. Expected a colon ':' following block declarations.")
+
+        # Loop and pull signal pin name strings
+        while self.symbol.type == TokenType.NAME:
+            port_str = self.names.get_string(self.symbol.id)
+            if is_input:
+                self.current_blueprint.input_ports.add(port_str)
+            else:
+                self.current_blueprint.output_ports.add(port_str)
+            
+            self.symbol = self.scanner.get_symbol()
+            
+            if self.symbol.type == TokenType.SEMICOLON:
+                self.symbol = self.scanner.get_symbol()
+            else:
+                self.report_error("ERR_102", f"Missing or misplaced character. Expected a trailing semicolon ';' after port '{port_str}'.")
+                self.panic_recover([TokenType.SEMICOLON, TokenType.KEYWORD])
+
+        # Enforce formal structural closure parsing rules
+        if self.symbol.type == TokenType.KEYWORD and self.symbol.id == block_id:
+            self.symbol = self.scanner.get_symbol()
+            if self.symbol.type == TokenType.KEYWORD and self.symbol.id == end_id:
+                self.symbol = self.scanner.get_symbol()
+                if self.symbol.type == TokenType.SEMICOLON:
+                    self.symbol = self.scanner.get_symbol()
+                else:
+                    self.report_error("ERR_102", "Missing or misplaced character. Expected a trailing semicolon ';'.")
+            else:
+                self.report_error("ERR_104", f"Block termination mismatch. Missing or malformed '{block_kw_str} END' clause.")
+        else:
+            self.report_error("ERR_104", f"Block termination mismatch. Missing or malformed '{block_kw_str} END' clause.")
+
+    def resolve_and_connect_nodes(self, src_dev_path, src_port, dest_dev_path, dest_port):
+        """Trace macro interface connection chains and validate interface alignment constraints.
+        Contains Errors[211, 212, 213, 215, 216]"""
+        
+        # ensure the port references actually exist and aren't directionally flipped.
+        if not self.validate_macro_boundary_references(src_dev_path, src_port, expect_input=False):
+            return
+        if not self.validate_macro_boundary_references(dest_dev_path, dest_port, expect_input=True):
+            return
+
+        final_src_dev, final_src_port = self.trace_to_primitive_node(src_dev_path, src_port)
+        final_dest_dev, final_dest_port = self.trace_to_primitive_node(dest_dev_path, dest_port)
+
+        src_id = self.network.devices.get_device_id(final_src_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_src_dev)
+        dest_id = self.network.devices.get_device_id(final_dest_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_dest_dev)
+        
+        if not src_id or not dest_id:
+            self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
+            return
+
+        src_port_id = self.names.query(final_src_port) if final_src_port else None
+        dest_port_id = self.names.query(final_dest_port) if final_dest_port else None
+
+        net_error = self.network.make_connection(src_id, src_port_id, dest_id, dest_port_id)
+        if net_error != self.network.NO_ERROR:
+            if net_error == self.network.INPUT_CONNECTED:
+                self.report_error("ERR_215", f"Port fan-in constraint violation. Target input pin port already driven by an output source.")
+            elif net_error in [self.network.DEVICE_ABSENT, self.network.INPUT_ABSENT, self.network.OUTPUT_ABSENT]:
+                if net_error == self.network.INPUT_ABSENT:
+                    self.report_error("ERR_212", f"Invalid input port identifier. Pin '{final_dest_port}' does not exist on component '{final_dest_dev}'.")
+                elif net_error == self.network.OUTPUT_ABSENT:
+                    self.report_error("ERR_213", f"Invalid output port identifier. Pin '{final_src_port}' does not exist on component '{final_src_dev}'.")
+                else:
+                    self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
+            else:
+                self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
+
+    def validate_macro_boundary_references(self, dev_path, port_name, expect_input=True):
+        """Scan connection assignments to catch ERR_222 and ERR_217 interface boundary violations.
+        Contains Errors[214, 217, 222]"""
+        parts = dev_path.split(".")
+        current_scope = ""
+        
+        for i, part in enumerate(parts):
+            current_scope = f"{current_scope}.{part}" if current_scope else part
+            scope_id = self.names.lookup([current_scope])[0]
+            
+            # If this path step belongs to an instantiated Macro Type template
+            if scope_id in self.instantiated_types:
+                macro_type_id = self.instantiated_types[scope_id]
+                blueprint = self.custom_types[macro_type_id]
+                
+                # If there are no trailing path steps, the referenced pin is directly on this macro's shell
+                if i == len(parts) - 1:
+                    if not port_name:
+                        self.report_error("ERR_214", f"Missing terminal pin qualifier.")
+                        return False
+                        
+                    is_in_set = port_name in blueprint.input_ports
+                    is_out_set = port_name in blueprint.output_ports
+                    
+                    # Check if the port exists on the boundary declaration (ERR_222)
+                    if not is_in_set and not is_out_set:
+                        self.report_error("ERR_222", f"Interface boundary mismatch. Port referenced in main layout does not exist on imported macro. Pin: '{port_name}'")
+                        return False
+                    
+                    # Check if the directionality matches the connection wire alignment intent (ERR_217)
+                    if expect_input and is_out_set:
+                        self.report_error("ERR_217", f"Macro interface typing mismatch. Child input/output port directionality has been flipped. Port: '{port_name}'")
+                        return False
+                    elif not expect_input and is_in_set:
+                        self.report_error("ERR_217", f"Macro interface typing mismatch. Child input/output port directionality has been flipped. Port: '{port_name}'")
+                        return False
+        return True
+    
     def parse_imports_block(self):
-        """Parse the optional macro declaration IMPORTS block."""
+        """Parse the optional macro declaration IMPORTS block. Contains Errors[102, 103, 104]"""
         import_id = self.names.query("IMPORT")
         end_id = self.names.query("END")
 
@@ -147,7 +278,7 @@ class Parser:
             self.report_error("ERR_104", "Block termination mismatch. Missing or malformed 'IMPORT END' clause.")
 
     def parse_import_rule(self):
-        """Parse an individual macro cross-file registration string rule."""
+        """Parse an individual macro cross-file registration string rule. Contains Errors[102, 108, 109, 201, 202, 221]"""
         custom_name_id = self.symbol.id
         custom_string = self.names.get_string(custom_name_id)
 
@@ -196,7 +327,7 @@ class Parser:
                 self.custom_types[custom_name_id] = blueprint
     
     def compile_blueprint_file(self, filepath):
-        """Recursively instantiate isolated components to map out a file macro."""
+        """Recursively instantiate isolated components to map out a file macro. Contains Errors[203, 204]"""
         if not os.path.exists(filepath):
             self.report_error("ERR_203", f"Target custom macro path resource cannot be located: '{filepath}'.")
             return None
@@ -220,7 +351,7 @@ class Parser:
         return sub_parser.current_blueprint
     
     def parse_devices_block(self):
-        """Parse the mandatory Devices block."""
+        """Parse the mandatory Devices block. Contains Errors[102, 103, 104]"""
         devices_id = self.names.query("DEVICES")
         end_id = self.names.query("END")
 
@@ -248,7 +379,7 @@ class Parser:
             self.report_error("ERR_104", "Block termination mismatch. Missing or malformed 'DEVICES END' clause.")
 
     def parse_device_declaration(self, prefix=""):
-        """Instantiate logic device modules onto the internal simulator structure engine."""
+        """Instantiate logic device modules onto the internal simulator structure engine. Contains Errors[102, 106, 107, 110, 205, 206, 207, 208, 209, 210]"""
         device_name_id = self.symbol.id
         device_name_str = self.names.get_string(device_name_id)
         
@@ -342,12 +473,32 @@ class Parser:
             self.resolve_and_connect_nodes(flat_src_dev, src_p, flat_dest_dev, dest_p)
 
     def parse_connections_block(self):
-        """Parse the mandatory Connections block."""
-        # Implementation of connection parsing logic goes here
-        pass
+        """Parse the wiring route interconnections block configurations.
+        Contains Errors[102, 103, 104]"""
+        connect_id = self.names.query("CONNECT")
+        end_id = self.names.query("END")
+        self.symbol = self.scanner.get_symbol()
+        if self.symbol.type == TokenType.COLON:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_103", "Malformed block header. Expected a colon ':' following block declarations.")
+        while self.symbol.type == TokenType.NAME:
+            self.parse_connection_rule()
+        if self.symbol.type == TokenType.KEYWORD and self.symbol.id == connect_id:
+            self.symbol = self.scanner.get_symbol()
+            if self.symbol.type == TokenType.KEYWORD and self.symbol.id == end_id:
+                self.symbol = self.scanner.get_symbol()
+                if self.symbol.type == TokenType.SEMICOLON:
+                    self.symbol = self.scanner.get_symbol()
+                else:
+                    self.report_error("ERR_102", "Missing or misplaced character. Expected a trailing semicolon ';'.")
+            else:
+                self.report_error("ERR_104", "Block termination mismatch. Missing or malformed 'CONNECT END' clause.")
+        else:
+            self.report_error("ERR_104", "Block termination mismatch. Missing or malformed 'CONNECT END' clause.")
     
     def parse_connection_rule(self):
-        """Parse an individual connection rule."""
+        """Parse an individual connection rule. Contains Errors[102, 106]"""
         out_dev_str, out_pin_str = self.parse_composite_signal_path()
 
         if self.symbol.type == TokenType.EQUALS:
@@ -370,7 +521,7 @@ class Parser:
             self.panic_recover([TokenType.SEMICOLON, TokenType.KEYWORD])
 
     def parse_composite_signal_path(self):
-        """Extract flat or multidot namespace path chains."""
+        """Extract flat or multidot namespace path chains. Contains Errors[110]"""
         segments = []
         while True:
             if self.symbol.type not in [TokenType.NAME, TokenType.NUMBER]:
@@ -391,7 +542,7 @@ class Parser:
             return ".".join(segments[:-1]), segments[-1]
     
     def resolve_and_connect_nodes(self, src_dev_path, src_port, dest_dev_path, dest_port):
-        """Trace macro interface connection chains to link inner primitive paths directly."""
+        """Trace macro interface connection chains to link inner primitive paths directly. Contains Errors[211, 212, 213, 215, 216]"""
         final_src_dev, final_src_port = self.trace_to_primitive_node(src_dev_path, src_port)
         final_dest_dev, final_dest_port = self.trace_to_primitive_node(dest_dev_path, dest_port)
 
@@ -438,6 +589,31 @@ class Parser:
                 return internal_target_dev, initial_port
 
         return dev_path, initial_port
+    
+    def parse_signal_path(self, is_input_rule=False):
+        """Parse flat labels or compound path extensions using dot notation parsing.
+        Contains Errors[110, 211, 214]"""
+        dev_id = self.symbol.id
+        dev_str = self.names.get_string(dev_id)
+        pin_id = None
+        self.symbol = self.scanner.get_symbol()
+        if self.symbol.type == TokenType.DOT:
+            self.symbol = self.scanner.get_symbol()
+            if self.symbol.type in [TokenType.NAME, TokenType.NUMBER]:
+                pin_id = self.symbol.id
+                self.symbol = self.scanner.get_symbol()
+            else:
+                self.report_error("ERR_110", "Invalid alphanumeric token layout format intercepted by Lexical Scanner.")
+        else:
+            if self.error_count == 0:
+                dev_instance = self.devices.get_device(dev_id)
+                if not dev_instance:
+                    self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized '{dev_str}'.")
+                elif dev_instance.device_kind == self.devices.D_TYPE:
+                    self.report_error("ERR_214", f"Missing terminal pin qualifier. Primitives or macro blocks require explicit dot syntax on DTYPE node '{dev_str}'.")
+                elif is_input_rule:
+                    self.report_error("ERR_214", f"Missing terminal pin qualifier. Primitives or macro blocks require explicit dot syntax on '{dev_str}'.")
+        return dev_id, pin_id
     
     def parse_monitors_block(self):
         """Parse the mandatory Monitors block."""
