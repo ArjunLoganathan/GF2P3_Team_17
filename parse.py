@@ -616,7 +616,30 @@ class Parser:
     
     def parse_monitors_block(self):
         """Parse the mandatory Monitors block."""
-        # Implementation of monitor parsing logic goes here
+        monitor_id = self.names.query("MONITOR")
+        end_id = self.names.query("END")
+        self.symbol = self.scanner.get_symbol()
+        if self.symbol.type == TokenType.COLON:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_103", "Malformed block header. Expected a colon ':' following block declarations.")
+        while self.symbol.type == TokenType.NAME:
+            self.parse_monitor_rule()
+        if self.symbol.type == TokenType.KEYWORD and self.symbol.id == monitor_id:
+            self.symbol = self.scanner.get_symbol()
+            if self.symbol.type == TokenType.KEYWORD and self.symbol.id == end_id:
+                self.symbol = self.scanner.get_symbol()
+                if self.symbol.type == TokenType.SEMICOLON:
+                    self.symbol = self.scanner.get_symbol()
+                else:
+                    self.report_error("ERR_102", "Missing or misplaced character. Expected a trailing semicolon ';'.")
+            else:
+                self.report_error("ERR_104", "Block termination mismatch. Missing or malformed 'MONITOR END' clause.")
+        else:
+            self.report_error("ERR_104", "Block termination mismatch. Missing or malformed 'MONITOR END' clause.")
+    
+    def parse_monitor_rule(self):
+        """Parse an individual monitor rule."""
         pass
 
     def report_error(self, code_tag, specific_details=""):
