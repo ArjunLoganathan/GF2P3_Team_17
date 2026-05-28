@@ -536,27 +536,39 @@ class Parser:
             return ".".join(segments[:-1]), segments[-1]
     
     def resolve_and_connect_nodes(self, src_dev_path, src_port, dest_dev_path, dest_port):
-        """Trace macro interface connection chains to link inner primitive paths directly. Contains Errors[211, 215]"""
+        """Trace macro interface connection chains and validate interface alignment constraints."""
+        if not self.validate_macro_boundary_references(src_dev_path, src_port, expect_input=False):
+            return
+        if not self.validate_macro_boundary_references(dest_dev_path, dest_port, expect_input=True):
+            return
+
         final_src_dev, final_src_port = self.trace_to_primitive_node(src_dev_path, src_port)
         final_dest_dev, final_dest_port = self.trace_to_primitive_node(dest_dev_path, dest_port)
 
-        src_id = self.network.devices.get_device_id(final_src_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_src_dev)
-        dest_id = self.network.devices.get_device_id(final_dest_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_dest_dev)
-        
-        if not src_id or not dest_id:
+        # Utilize native backend helper to reliably convert composite strings to valid system IDs
+        src_signal_str = f"{final_src_dev}.{final_src_port}" if final_src_port else final_src_dev
+        dest_signal_str = f"{final_dest_dev}.{final_dest_port}" if final_dest_port else final_dest_dev
+
+        [src_id, src_port_id] = self.devices.get_signal_ids(src_signal_str)
+        [dest_id, dest_port_id] = self.devices.get_signal_ids(dest_signal_str)
+
+        # Check explicitly if devices were correctly allocated in previous blocks
+        if self.devices.get_device(src_id) is None or self.devices.get_device(dest_id) is None:
             self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
             return
 
-        src_port_id = self.names.query(final_src_port) if final_src_port else None
-        dest_port_id = self.names.query(final_dest_port) if final_dest_port else None
-
         net_error = self.network.make_connection(src_id, src_port_id, dest_id, dest_port_id)
+        
         if net_error != self.network.NO_ERROR:
             if net_error == self.network.INPUT_CONNECTED:
                 self.report_error("ERR_215", f"Port fan-in constraint violation. Target input pin port already driven by an output source.")
             elif net_error in [self.network.DEVICE_ABSENT, self.network.PORT_ABSENT]:
-                self.report_error("ERR_211", f"Unresolved port or routing element mapping missing from target.")
-
+                self.report_error("ERR_211", f"Unresolved line routing assignment or invalid port mapping.")
+            elif hasattr(self.network, 'INPUT_TO_INPUT') and net_error in [self.network.INPUT_TO_INPUT, self.network.OUTPUT_TO_OUTPUT]:
+                self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
+            else:
+                self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
+    
     def trace_to_primitive_node(self, dev_path, initial_port):
         """Traverse structural container path steps to expose the inner flat target primitive node."""
         parts = dev_path.split(".")
