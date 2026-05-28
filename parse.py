@@ -184,30 +184,25 @@ class Parser:
         final_src_dev, final_src_port = self.trace_to_primitive_node(src_dev_path, src_port)
         final_dest_dev, final_dest_port = self.trace_to_primitive_node(dest_dev_path, dest_port)
 
-        src_id = self.network.devices.get_device_id(final_src_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_src_dev)
-        dest_id = self.network.devices.get_device_id(final_dest_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_dest_dev)
-        
-        if not src_id or not dest_id:
+        src_signal_str = f"{final_src_dev}.{final_src_port}" if final_src_port else final_src_dev
+        dest_signal_str = f"{final_dest_dev}.{final_dest_port}" if final_dest_port else final_dest_dev
+
+        [src_id, src_port_id] = self.devices.get_signal_ids(src_signal_str)
+        [dest_id, dest_port_id] = self.devices.get_signal_ids(dest_signal_str)
+
+        if self.devices.get_device(src_id) is None or self.devices.get_device(dest_id) is None:
             self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
             return
-
-        src_port_id = self.names.query(final_src_port) if final_src_port else None
-        dest_port_id = self.names.query(final_dest_port) if final_dest_port else None
 
         net_error = self.network.make_connection(src_id, src_port_id, dest_id, dest_port_id)
         if net_error != self.network.NO_ERROR:
             if net_error == self.network.INPUT_CONNECTED:
                 self.report_error("ERR_215", f"Port fan-in constraint violation. Target input pin port already driven by an output source.")
-            elif net_error in [self.network.DEVICE_ABSENT, self.network.INPUT_ABSENT, self.network.OUTPUT_ABSENT]:
-                if net_error == self.network.INPUT_ABSENT:
-                    self.report_error("ERR_212", f"Invalid input port identifier. Pin '{final_dest_port}' does not exist on component '{final_dest_dev}'.")
-                elif net_error == self.network.OUTPUT_ABSENT:
-                    self.report_error("ERR_213", f"Invalid output port identifier. Pin '{final_src_port}' does not exist on component '{final_src_dev}'.")
-                else:
-                    self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
-            else:
+            elif net_error in [self.network.DEVICE_ABSENT, self.network.PORT_ABSENT]:
+                self.report_error("ERR_211", f"Unresolved line routing assignment or invalid port mapping.")
+            elif net_error in [self.network.INPUT_TO_INPUT, self.network.OUTPUT_TO_OUTPUT]:
                 self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
-
+            
     def validate_macro_boundary_references(self, dev_path, port_name, expect_input=True):
         """Scan connection assignments to catch ERR_222 and ERR_217 interface boundary violations.
         Contains Errors[214, 217, 222]"""
@@ -541,7 +536,7 @@ class Parser:
             return ".".join(segments[:-1]), segments[-1]
     
     def resolve_and_connect_nodes(self, src_dev_path, src_port, dest_dev_path, dest_port):
-        """Trace macro interface connection chains to link inner primitive paths directly. Contains Errors[211, 212, 213, 215, 216]"""
+        """Trace macro interface connection chains to link inner primitive paths directly. Contains Errors[211, 215]"""
         final_src_dev, final_src_port = self.trace_to_primitive_node(src_dev_path, src_port)
         final_dest_dev, final_dest_port = self.trace_to_primitive_node(dest_dev_path, dest_port)
 
@@ -559,17 +554,9 @@ class Parser:
         if net_error != self.network.NO_ERROR:
             if net_error == self.network.INPUT_CONNECTED:
                 self.report_error("ERR_215", f"Port fan-in constraint violation. Target input pin port already driven by an output source.")
-            elif net_error in [self.network.DEVICE_ABSENT, self.network.INPUT_ABSENT, self.network.OUTPUT_ABSENT]:
-                # Distinguish pin-level non-existence semantics
-                if net_error == self.network.INPUT_ABSENT:
-                    self.report_error("ERR_212", f"Invalid input port identifier. Pin '{final_dest_port}' does not exist on component '{final_dest_dev}'.")
-                elif net_error == self.network.OUTPUT_ABSENT:
-                    self.report_error("ERR_213", f"Invalid output port identifier. Pin '{final_src_port}' does not exist on component '{final_src_dev}'.")
-                else:
-                    self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
-            else:
-                self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
-    
+            elif net_error in [self.network.DEVICE_ABSENT, self.network.PORT_ABSENT]:
+                self.report_error("ERR_211", f"Unresolved port or routing element mapping missing from target.")
+
     def trace_to_primitive_node(self, dev_path, initial_port):
         """Traverse structural container path steps to expose the inner flat target primitive node."""
         parts = dev_path.split(".")
@@ -615,7 +602,7 @@ class Parser:
         return dev_id, pin_id
     
     def parse_monitors_block(self):
-        """Parse the mandatory Monitors block."""
+        """Parse the optional Monitors block."""
         monitor_id = self.names.query("MONITOR")
         end_id = self.names.query("END")
         self.symbol = self.scanner.get_symbol()
@@ -640,12 +627,74 @@ class Parser:
     
     def parse_monitor_rule(self):
         """Parse an individual monitor rule."""
-        pass
+        dev_path_str, pin_str = self.parse_composite_signal_path()
+        if self.error_count == 0 and dev_path_str:
+            final_dev_str, final_pin_str = self.trace_to_primitive_node(dev_path_str, pin_str)
+            dev_id = self.names.lookup([final_dev_str])[0]
+            pin_id = self.names.lookup([final_pin_str])[0] if final_pin_str else None
+            mon_error = self.monitors.make_monitor(dev_id, pin_id)
+            if mon_error != self.monitors.NO_ERROR:
+                if mon_error == self.monitors.NOT_OUTPUT:
+                    self.report_error("ERR_218", f"Cannot track diagnostics trace loop target. Component node is not a valid output line on '{final_dev_str}'.")
+                elif mon_error == self.monitors.MONITOR_PRESENT:
+                    self.report_error("ERR_219", f"Duplicate monitor trace instruction targeting identical terminal routes on '{final_dev_str}'.")
+        if self.symbol.type == TokenType.SEMICOLON:
+            self.symbol = self.scanner.get_symbol()
+        else:
+            self.report_error("ERR_102", f"Missing or misplaced character. Expected a trailing semicolon ';' for monitor config on '{dev_path_str}'.")
+            self.panic_recover([TokenType.SEMICOLON, TokenType.KEYWORD])
 
     def report_error(self, code_tag, specific_details=""):
         """Report an error with a specific code and message."""
-        pass
+        self.error_count += 1
+        error_messages = {
+            "ERR_101": "Error 101: Unexpected end of file encountered before global 'END' sentinel.",
+            "ERR_102": "Error 102: Missing or misplaced character. Expected a trailing semicolon ';'.",
+            "ERR_103": "Error 103: Malformed block header. Expected a colon ':' following block declarations.",
+            "ERR_104": "Error 104: Block termination mismatch. Missing or malformed '<BLOCKNAME> END' clause.",
+            "ERR_105": "Error 105: Out-of-order block sequence structural arrangement declaration.",
+            "ERR_106": "Error 106: Missing or invalid assignment symbol. Expected '=' operator.",
+            "ERR_107": "Error 107: Expected a valid device parameter or configuration state integer.",
+            "ERR_108": "Error 108: Missing file mapping path assignment direction. Expected 'FROM' keyword.",
+            "ERR_109": "Error 109: Malformed character string. Paths must be wrapped in matching double quotes '\"'.",
+            "ERR_110": "Error 110: Invalid alphanumeric token layout format intercepted by Lexical Scanner.",
+            "ERR_111": "Error 111: Floating parameter token or syntax debris detected trailing statement lines.",
+            "ERR_112": "Error 112: Missing or malformed 'INPUT_PORTS' declaration block in sub-circuit file.",
+            "ERR_113": "Error 113: Missing or malformed 'OUTPUT_PORTS' declaration block in sub-circuit file.",
+            "ERR_201": "Error 201: Illegal type definition. Custom names cannot overwrite system primitives.",
+            "ERR_202": "Error 202: Duplicate custom type import registration path attempted.",
+            "ERR_203": "Error 203: Target blueprint layout file path could not be resolved by the workspace.",
+            "ERR_204": "Error 204: Child macro file compilation aborted due to nested syntax or semantic errors.",
+            "ERR_205": "Error 205: Duplicate component instance declaration. Device string identifier already active.",
+            "ERR_206": "Error 206: Unknown or unregistered device type configuration identifier mapping.",
+            "ERR_207": "Error 207: Component pin allocation constraints out-of-bounds. Primitives require 1-16 inputs.",
+            "ERR_208": "Error 208: Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1.",
+            "ERR_209": "Error 209: Invalid timing parameter properties. CLOCK frequencies must be positive non-zero integers.",
+            "ERR_210": "Error 210: Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments.",
+            "ERR_211": "Error 211: Unresolved line routing assignment. Device identifier referenced was never initialized.",
+            "ERR_212": "Error 212: Invalid input port identifier. Pin does not exist on this component type.",
+            "ERR_213": "Error 213: Invalid output port identifier. Pin does not exist on this component type.",
+            "ERR_214": "Error 214: Missing terminal pin qualifier. Primitives or macro blocks require explicit dot syntax.",
+            "ERR_215": "Error 215: Port fan-in constraint violation. Target input pin port already driven by an output source.",
+            "ERR_216": "Error 216: Directional typing error. Signal linkages must traverse strictly from Output to Input ports.",
+            "ERR_217": "Error 217: Macro interface typing mismatch. Child input/output port directionality has been flipped.",
+            "ERR_218": "Error 218: Cannot track diagnostics trace loop target. Component node is not a valid output line.",
+            "ERR_219": "Error 219: Duplicate monitor trace instruction targeting identical terminal routes.",
+            "ERR_220": "Error 220: Open Circuit Warning. Network structural synthesis layout contains unconnected input gates.",
+            "ERR_221": "Error 221: Circular dependency chain detected in file import statements.",
+            "ERR_222": "Error 222: Interface boundary mismatch. Port referenced in main layout does not exist on imported macro."
+        }
+        if hasattr(self.scanner, 'print_error_line'):
+            self.scanner.print_error_line()
+        base_msg = error_messages.get(code_tag, f"Unknown Error Condition [{code_tag}].")
+        if specific_details:
+            print(f"*** {base_msg} Details: {specific_details}\n")
+        else:
+            print(f"*** {base_msg}\n")
     
     def panic_recover(self, stop_tokens):
         """Panic mode error recovery: skip symbols until a sync token is found."""
-        pass
+        while self.symbol.type not in stop_tokens and self.symbol.type != TokenType.EOF:
+            self.symbol = self.scanner.get_symbol()
+        if self.symbol.type in stop_tokens and self.symbol.type != TokenType.KEYWORD:
+            self.symbol = self.scanner.get_symbol() 
