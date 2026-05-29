@@ -14,3 +14,4 @@ MONITOR:
     G1;
     G2;
 MONITOR END;
+END;
