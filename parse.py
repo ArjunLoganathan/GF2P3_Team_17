@@ -144,10 +144,11 @@ class Parser:
         # Loop and pull signal pin name strings
         while self.symbol.type == TokenType.NAME:
             port_str = self.names.get_string(self.symbol.id)
-            if is_input:
-                self.current_blueprint.input_ports.add(port_str)
-            else:
-                self.current_blueprint.output_ports.add(port_str)
+            if self.current_blueprint is not None:
+                if is_input:
+                    self.current_blueprint.input_ports.add(port_str)
+                else:
+                    self.current_blueprint.output_ports.add(port_str)
             
             self.symbol = self.scanner.get_symbol()
             
@@ -170,7 +171,6 @@ class Parser:
                 self.report_error("ERR_104", f"Block termination mismatch. Missing or malformed '{block_kw_str} END' clause.")
         else:
             self.report_error("ERR_104", f"Block termination mismatch. Missing or malformed '{block_kw_str} END' clause.")
-
     def validate_macro_boundary_references(self, dev_path, port_name, expect_input=True):
         """Scan connection assignments to catch ERR_222 and ERR_217 interface boundary violations.
         Contains Errors[214, 217, 222]"""
