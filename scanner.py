@@ -103,10 +103,10 @@ class Scanner:
         for match in self.token_iterator:
             kind = match.lastgroup
             start_index = match.span()[0]
-            print(self.line_starts)
-            print(start_index)
+            # print(self.line_starts)
+            # print(start_index)
             if self.current_line < len(self.line_starts):
-                print(start_index,self.line_starts[self.current_line])
+                # print(start_index,self.line_starts[self.current_line])
                 if start_index >= self.line_starts[self.current_line]:
                     self.current_line += 1
 
