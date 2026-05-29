@@ -66,7 +66,7 @@ class Scanner:
             ('WHITESPACE',    r'\s+'),
             ('STRING',        r'"[^"\n]*"'),
             ('NUMBER',        r'\d+'),
-            ('NAME',          r'[a-zA-Z_][a-zA-Z0-9_]*'),
+            ('NAME',          r'[a-zA-Z][a-zA-Z0-9]*'),
             ('SEMICOLON',     r';'),
             ('COLON',         r':'),
             ('EQUALS',        r'='),
