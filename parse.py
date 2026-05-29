@@ -143,7 +143,7 @@ class Parser:
 
         # Loop and pull signal pin name strings
         while self.symbol.type == TokenType.NAME:
-            port_str = self.names.get_string(self.symbol.id)
+            port_str = self.names.get_name_string(self.symbol.id)
             if is_input:
                 self.current_blueprint.input_ports.add(port_str)
             else:
@@ -242,7 +242,7 @@ class Parser:
     def parse_import_rule(self):
         """Parse an individual macro cross-file registration string rule. Contains Errors[102, 108, 109, 201, 202, 221]"""
         custom_name_id = self.symbol.id
-        custom_string = self.names.get_string(custom_name_id)
+        custom_string = self.names.get_name_string(custom_name_id)
 
         # Semantic verification: Custom names cannot overwrite system primitives
         if custom_name_id in self.primitive_ids or custom_string in self.primitive_keywords:
@@ -264,7 +264,7 @@ class Parser:
             self.report_error("ERR_108", "Missing file mapping path assignment direction. Expected 'FROM' keyword.")
 
         if self.symbol.type == TokenType.STRING:
-            file_path_raw = self.names.get_string(self.symbol.id)
+            file_path_raw = self.names.get_name_string(self.symbol.id)
             file_path_str = file_path_raw.strip('"\'')
             self.symbol = self.scanner.get_symbol()
         else:
@@ -343,7 +343,7 @@ class Parser:
     def parse_device_declaration(self, prefix=""):
         """Instantiate logic device modules onto the internal simulator structure engine. Contains Errors[102, 106, 107, 110, 205, 206, 207, 208, 209, 210]"""
         device_name_id = self.symbol.id
-        device_name_str = self.names.get_string(device_name_id)
+        device_name_str = self.names.get_name_string(device_name_id)
         
         scoped_name_str = f"{prefix}.{device_name_str}" if prefix else device_name_str
         scoped_name_id = self.names.lookup([scoped_name_str])[0]
@@ -372,14 +372,14 @@ class Parser:
 
         parameter_val = None
         if self.symbol.type == TokenType.NUMBER:
-            parameter_val = int(self.names.get_string(self.symbol.id))
+            parameter_val = int(self.names.get_name_string(self.symbol.id))
             self.symbol = self.scanner.get_symbol()
             if not is_primitive:
                 self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments. (Or custom macro '{device_name_str}')")
         else:
             # Enforce required parameters for structural primitives that expect them
             if is_primitive:
-                type_str = self.names.get_string(device_type_id)
+                type_str = self.names.get_name_string(device_type_id)
                 if type_str in ["SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR"]:
                     self.report_error("ERR_107", "Expected a valid device parameter or configuration state integer.")
 
@@ -391,7 +391,7 @@ class Parser:
                     self.instantiated_types[scoped_name_id] = device_type_id
                     self.flatten_macro_to_hardware(scoped_name_str, device_type_id)
                 else:
-                    type_str = self.names.get_string(device_type_id)
+                    type_str = self.names.get_name_string(device_type_id)
                     
                     if type_str == "SWITCH" and (parameter_val is None or parameter_val not in [0, 1]):
                         self.report_error("ERR_208", f"Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1 on '{device_name_str}'.")
@@ -490,7 +490,7 @@ class Parser:
                 self.report_error("ERR_110", "Invalid alphanumeric token layout format intercepted by Lexical Scanner.")
                 return None, None
             
-            segments.append(self.names.get_string(self.symbol.id))
+            segments.append(self.names.get_name_string(self.symbol.id))
             self.symbol = self.scanner.get_symbol()
             
             if self.symbol.type == TokenType.DOT:
@@ -560,7 +560,7 @@ class Parser:
         """Parse flat labels or compound path extensions using dot notation parsing.
         Contains Errors[110, 211, 214]"""
         dev_id = self.symbol.id
-        dev_str = self.names.get_string(dev_id)
+        dev_str = self.names.get_name_string(dev_id)
         pin_id = None
         self.symbol = self.scanner.get_symbol()
         if self.symbol.type == TokenType.DOT:
