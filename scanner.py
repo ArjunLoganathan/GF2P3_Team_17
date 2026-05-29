@@ -94,7 +94,7 @@ class Scanner:
         """Fetch the next valid symbol, skipping whitespace and comments."""
         for match in self.token_iterator:
             kind = match.lastgroup
-            start_index = match.span[0]
+            start_index = match.span()[0]
             if self.current_line < len(self.line_starts):
                 if start_index <= self.line_starts[self.current_line]:
                     self.current_line += 1
