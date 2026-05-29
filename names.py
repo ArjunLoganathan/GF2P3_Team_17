@@ -57,6 +57,9 @@ class Names:
 
         If the name string is not present in the names list, return None.
         """
+        if name_string in self.name_id_mapping:
+            return self.name_id_mapping[name_string]
+        return None
 
     def lookup(self, name_string_list):
         """Return a list of name IDs for each name string in name_string_list.
@@ -82,4 +85,6 @@ class Names:
 
         If the name_id is not an index in the names list, return None.
         """
-        
+        if 0 <= name_id < len(self.name_id_strings):
+            return self.name_id_strings[name_id]
+        return None    

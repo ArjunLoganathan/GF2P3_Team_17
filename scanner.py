@@ -59,7 +59,7 @@ class Scanner:
         self.current_symbol = None
         self.reservered_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE".split(" ")
         self.reservered_keyword_ids = self.names.lookup(self.reservered_keywords)
-        self.file = self.open_file(path)
+        self.file = self.open_file()
 
     def get_symbol(self):
         """Translate the next sequence of characters into a symbol."""
