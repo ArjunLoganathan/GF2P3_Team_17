@@ -57,12 +57,13 @@ def test_parser_initialization(parser, mock_dependencies):
 def test_report_error_increments_count(parser, capsys):
     """Ensures calling report_error increments the count and prints a formatted message."""
     assert parser.error_count == 0
+    parser.symbol.line = 42
     
     parser.report_error("ERR_102", "Expected a trailing semicolon ';'.")
     
     assert parser.error_count == 1
     captured = capsys.readouterr()
-    assert "*** Error 102: Missing or misplaced character." in captured.out
+    assert "*** Line 42 | Error 102: Missing or misplaced character." in captured.out
     assert "Details: Expected a trailing semicolon ';'." in captured.out
 
 
