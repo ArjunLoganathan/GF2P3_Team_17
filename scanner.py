@@ -77,7 +77,7 @@ class Scanner:
         regex_string = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in self.token_specification)
         self.master_regex = re.compile(regex_string)
 
-        self.token_iterator = self.master_regex.finditer(self.source_code)
+        self.token_iterator = self.master_regex.finditer(self.source_file)
 
     def read_file(self):
         """Open, read, and return the entire text of the file."""
