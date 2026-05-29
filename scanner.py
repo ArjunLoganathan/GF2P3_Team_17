@@ -59,68 +59,101 @@ class Scanner:
         self.current_symbol = None
         self.reservered_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE".split(" ")
         self.reservered_keyword_ids = self.names.lookup(self.reservered_keywords)
-        self.file = self.open_file()
+        self.source_file = self.read_file()
+
+        self.token_specification = [
+            ('COMMENT',       r'\#.*|\\\*[\s\S]*?\*\\'),
+            ('WHITESPACE',    r'\s+'),
+            ('STRING',        r'"[^"\n]*"'),
+            ('NUMBER',        r'\d+'),
+            ('NAME',          r'[a-zA-Z_][a-zA-Z0-9_]*'),
+            ('SEMICOLON',     r';'),
+            ('COLON',         r':'),
+            ('EQUALS',        r'='),
+            ('DOT',           r'\.'),
+            ('INVALID',       r'.') 
+        ]
+
+        regex_string = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in self.token_specification)
+        self.master_regex = re.compile(regex_string)
+
+        self.token_iterator = self.master_regex.finditer(self.source_code)
+
+    def read_file(self):
+        """Open, read, and return the entire text of the file."""
+        try:
+            with open(self.path, "r") as file:
+                return file.read()
+        except (OSError, IOError):
+            raise FileNotFoundError("The provided path was not found!")
 
     def get_symbol(self):
-        """Translate the next sequence of characters into a symbol."""
-        next_symbols = self.get_next_symbol()
-        symbol_id,next_char_id = self.names.lookup(next_symbols)
-        self.current_symbol = Symbol()
-        self.current_symbol.id = symbol_id
-        if symbol_id in self.reservered_keyword_ids:
-            self.current_symbol.type = TokenType.KEYWORD
-        else:
-            self.current_symbol.type = self.regexMatch(next_symbols[0])
-        return self.current_symbol
+        """Fetch the next valid symbol, skipping whitespace and comments."""
+        for match in self.token_iterator:
+            kind = match.lastgroup
+            value = match.group()
+            
+            if kind in ['WHITESPACE', 'COMMENT']:
+                continue
+                
+            symbol = Symbol()
+            symbol.id = self.names.lookup([value])[0]
+            
+            if kind == 'NAME':
+                if symbol.id in self.reserved_keyword_ids:
+                    symbol.type = TokenType.KEYWORD
+                else:
+                    symbol.type = TokenType.NAME
+                    
+            elif kind == 'NUMBER':
+                symbol.type = TokenType.NUMBER
+                
+            elif kind == 'STRING':
+                symbol.type = TokenType.STRING
+                
+            elif kind == 'SEMICOLON':
+                symbol.type = TokenType.SEMICOLON
+                
+            elif kind == 'COLON':
+                symbol.type = TokenType.COLON
+                
+            elif kind == 'EQUALS':
+                symbol.type = TokenType.EQUALS
+                
+            elif kind == 'DOT':
+                symbol.type = TokenType.DOT
+                
+            else:
+                symbol.type = TokenType.INVALID
+                
+            return symbol
 
-    def open_file(self):
-        """Open and return the file specified by path.
-        Need to write more tests and error correction codes"""
-        try:
-            file = open(self.path,"r")
-            return file
-        except (OSError, IOError) as e:
-            raise FileNotFoundError("The provided path was not found!")
+        symbol = Symbol()
+        symbol.type = TokenType.EOF
+        return symbol
         
-    def get_next_character(self):
-        """Read and return the next character in input_file.
+    def advance(self):
+        """REDUNDANT - Read and return the next character in input_file.
         Need to write more tests and error correction codes"""
         try:
             return self.file.read(1)
         except Exception as e:
             raise Exception(f"Exception: {e}")
+
         
-    def get_next_non_whitespace_character(self):
-        """Seek and return the next non-whitespace character in file."""
-        try:
-            char = self.file.read(1)
-            if char != "" and char.isspace():
-                return self.get_next_non_whitespace_character()
-            return char
-        except:
-            raise Exception(f"Exception - Error in non-whitespace reader!")
-        
-    def get_next_symbol(self):
-        """Seek the next symbol string in input_file.
-        Return the symbol string (or None) and the next non-alphanumeric character.
-        """
-        try:
-            char = self.get_next_non_whitespace_character()
-            while not char.isalnum():
-                if re.match("[\;\:\=]",char):
-                    return [None,char]
-                char = self.get_next_non_whitespace_character()
-        
-            temp_str = ""
-            while char.isalnum():
-                temp_str += char
-                char = self.get_next_non_whitespace_character()
-            return [temp_str,char]
-        except:
-            # not sure when this will be called need to write tests for this
-            raise Exception("dasdas")
+    def skip_whitespace_and_comments(self):
+        """REDUNDANT - Skip spaces and comments."""
+        while self.current_char:
+            if self.current_char.isspace():
+                self.advance()
+            elif self.current_char == '#':
+                while self.current_char and self.current_char != '\n':
+                    self.advance()
+            else:
+                break
 
     def regexMatch(self, text):
+        """REDUNDANT - can just use simple if blocks"""
         if not text:
             return TokenType.EOF
 
