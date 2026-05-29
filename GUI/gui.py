@@ -282,6 +282,7 @@ class Gui(wx.Frame):
         # Configure the file menu
         file_menu = wx.Menu()
         menu_bar = wx.MenuBar()
+        file_menu.Append(wx.ID_HELP, "&Help")
         file_menu.Append(wx.ID_ABOUT, "&About")
         file_menu.Append(wx.ID_EXIT, "&Exit")
         menu_bar.Append(file_menu, "&File")
@@ -359,6 +360,12 @@ class Gui(wx.Frame):
         menu_id = event.GetId()
         if menu_id == wx.ID_EXIT:
             self.Close(True)
+        if menu_id == wx.ID_HELP:
+            wx.MessageBox("Run: start from cycle 0 with cleared traces.\n"
+                          "Continue: add more cycles to the current run.\n"
+                          "Set Switch: choose a switch and set it to 0 or 1.\n"
+                          "Add/Remove Monitor: choose which outputs to show.",
+                          "Logsim Help", wx.ICON_INFORMATION | wx.OK)
         if menu_id == wx.ID_ABOUT:
             wx.MessageBox("Logic Simulator\nGraphical user interface",
                           "About Logsim", wx.ICON_INFORMATION | wx.OK)
@@ -463,13 +470,22 @@ class Gui(wx.Frame):
         """Refresh the monitor selectors."""
         self.monitor_choices = {}
         self.available_monitor_choices = {}
-        monitored_names, available_names = self.monitors.get_signal_names()
+        monitored_names = []
+        available_names = []
 
-        for name in monitored_names:
-            self.monitor_choices[name] = tuple(self.devices.get_signal_ids(name))
-        for name in available_names:
-            self.available_monitor_choices[name] = tuple(
-                self.devices.get_signal_ids(name))
+        for device_id, output_id in self.monitors.monitors_dictionary:
+            name = self.devices.get_signal_name(device_id, output_id)
+            monitored_names.append(name)
+            self.monitor_choices[name] = (device_id, output_id)
+
+        for device_id in self.devices.find_devices():
+            device = self.devices.get_device(device_id)
+            for output_id in device.outputs:
+                if (device_id, output_id) not in self.monitors.monitors_dictionary:
+                    name = self.devices.get_signal_name(device_id, output_id)
+                    available_names.append(name)
+                    self.available_monitor_choices[name] = (device_id,
+                                                            output_id)
 
         self.set_choice_items(self.remove_monitor_choice, monitored_names)
         self.set_choice_items(self.add_monitor_choice, available_names)
