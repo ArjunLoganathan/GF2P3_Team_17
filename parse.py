@@ -129,7 +129,7 @@ class Parser:
         return self.error_count == 0  # Return True if no errors were found, False otherwise
     
     def parse_interface_ports_block(self, is_input=True):
-        """Parse INPUT_PORTS and OUTPUT_PORTS interface constraints for sub-circuit files. Contains Errors[102, 103, 104]"""
+        """Parse INPUT_PORTS and OUTPUT_PORTS interface constraints for subcircuit files. Contains Errors[102, 103, 104]"""
         block_kw_str = "INPUT_PORTS" if is_input else "OUTPUT_PORTS"
         block_id = self.names.query(block_kw_str)
         end_id = self.names.query("END")
@@ -143,7 +143,7 @@ class Parser:
 
         # Loop and pull signal pin name strings
         while self.symbol.type == TokenType.NAME:
-            port_str = self.names.get_string(self.symbol.id)
+            port_str = self.names.get_name_string(self.symbol.id)
             if is_input:
                 self.current_blueprint.input_ports.add(port_str)
             else:
@@ -171,38 +171,6 @@ class Parser:
         else:
             self.report_error("ERR_104", f"Block termination mismatch. Missing or malformed '{block_kw_str} END' clause.")
 
-    def resolve_and_connect_nodes(self, src_dev_path, src_port, dest_dev_path, dest_port):
-        """Trace macro interface connection chains and validate interface alignment constraints.
-        Contains Errors[211, 212, 213, 215, 216]"""
-        
-        # ensure the port references actually exist and aren't directionally flipped.
-        if not self.validate_macro_boundary_references(src_dev_path, src_port, expect_input=False):
-            return
-        if not self.validate_macro_boundary_references(dest_dev_path, dest_port, expect_input=True):
-            return
-
-        final_src_dev, final_src_port = self.trace_to_primitive_node(src_dev_path, src_port)
-        final_dest_dev, final_dest_port = self.trace_to_primitive_node(dest_dev_path, dest_port)
-
-        src_signal_str = f"{final_src_dev}.{final_src_port}" if final_src_port else final_src_dev
-        dest_signal_str = f"{final_dest_dev}.{final_dest_port}" if final_dest_port else final_dest_dev
-
-        [src_id, src_port_id] = self.devices.get_signal_ids(src_signal_str)
-        [dest_id, dest_port_id] = self.devices.get_signal_ids(dest_signal_str)
-
-        if self.devices.get_device(src_id) is None or self.devices.get_device(dest_id) is None:
-            self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
-            return
-
-        net_error = self.network.make_connection(src_id, src_port_id, dest_id, dest_port_id)
-        if net_error != self.network.NO_ERROR:
-            if net_error == self.network.INPUT_CONNECTED:
-                self.report_error("ERR_215", f"Port fan-in constraint violation. Target input pin port already driven by an output source.")
-            elif net_error in [self.network.DEVICE_ABSENT, self.network.PORT_ABSENT]:
-                self.report_error("ERR_211", f"Unresolved line routing assignment or invalid port mapping.")
-            elif net_error in [self.network.INPUT_TO_INPUT, self.network.OUTPUT_TO_OUTPUT]:
-                self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
-            
     def validate_macro_boundary_references(self, dev_path, port_name, expect_input=True):
         """Scan connection assignments to catch ERR_222 and ERR_217 interface boundary violations.
         Contains Errors[214, 217, 222]"""
@@ -274,7 +242,7 @@ class Parser:
     def parse_import_rule(self):
         """Parse an individual macro cross-file registration string rule. Contains Errors[102, 108, 109, 201, 202, 221]"""
         custom_name_id = self.symbol.id
-        custom_string = self.names.get_string(custom_name_id)
+        custom_string = self.names.get_name_string(custom_name_id)
 
         # Semantic verification: Custom names cannot overwrite system primitives
         if custom_name_id in self.primitive_ids or custom_string in self.primitive_keywords:
@@ -296,7 +264,7 @@ class Parser:
             self.report_error("ERR_108", "Missing file mapping path assignment direction. Expected 'FROM' keyword.")
 
         if self.symbol.type == TokenType.STRING:
-            file_path_raw = self.names.get_string(self.symbol.id)
+            file_path_raw = self.names.get_name_string(self.symbol.id)
             file_path_str = file_path_raw.strip('"\'')
             self.symbol = self.scanner.get_symbol()
         else:
@@ -375,7 +343,7 @@ class Parser:
     def parse_device_declaration(self, prefix=""):
         """Instantiate logic device modules onto the internal simulator structure engine. Contains Errors[102, 106, 107, 110, 205, 206, 207, 208, 209, 210]"""
         device_name_id = self.symbol.id
-        device_name_str = self.names.get_string(device_name_id)
+        device_name_str = self.names.get_name_string(device_name_id)
         
         scoped_name_str = f"{prefix}.{device_name_str}" if prefix else device_name_str
         scoped_name_id = self.names.lookup([scoped_name_str])[0]
@@ -404,14 +372,14 @@ class Parser:
 
         parameter_val = None
         if self.symbol.type == TokenType.NUMBER:
-            parameter_val = int(self.names.get_string(self.symbol.id))
+            parameter_val = int(self.names.get_name_string(self.symbol.id))
             self.symbol = self.scanner.get_symbol()
             if not is_primitive:
                 self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments. (Or custom macro '{device_name_str}')")
         else:
             # Enforce required parameters for structural primitives that expect them
             if is_primitive:
-                type_str = self.names.get_string(device_type_id)
+                type_str = self.names.get_name_string(device_type_id)
                 if type_str in ["SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR"]:
                     self.report_error("ERR_107", "Expected a valid device parameter or configuration state integer.")
 
@@ -423,7 +391,7 @@ class Parser:
                     self.instantiated_types[scoped_name_id] = device_type_id
                     self.flatten_macro_to_hardware(scoped_name_str, device_type_id)
                 else:
-                    type_str = self.names.get_string(device_type_id)
+                    type_str = self.names.get_name_string(device_type_id)
                     
                     if type_str == "SWITCH" and (parameter_val is None or parameter_val not in [0, 1]):
                         self.report_error("ERR_208", f"Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1 on '{device_name_str}'.")
@@ -522,7 +490,7 @@ class Parser:
                 self.report_error("ERR_110", "Invalid alphanumeric token layout format intercepted by Lexical Scanner.")
                 return None, None
             
-            segments.append(self.names.get_string(self.symbol.id))
+            segments.append(self.names.get_name_string(self.symbol.id))
             self.symbol = self.scanner.get_symbol()
             
             if self.symbol.type == TokenType.DOT:
@@ -536,27 +504,39 @@ class Parser:
             return ".".join(segments[:-1]), segments[-1]
     
     def resolve_and_connect_nodes(self, src_dev_path, src_port, dest_dev_path, dest_port):
-        """Trace macro interface connection chains to link inner primitive paths directly. Contains Errors[211, 215]"""
+        """Trace macro interface connection chains and validate interface alignment constraints."""
+        if not self.validate_macro_boundary_references(src_dev_path, src_port, expect_input=False):
+            return
+        if not self.validate_macro_boundary_references(dest_dev_path, dest_port, expect_input=True):
+            return
+
         final_src_dev, final_src_port = self.trace_to_primitive_node(src_dev_path, src_port)
         final_dest_dev, final_dest_port = self.trace_to_primitive_node(dest_dev_path, dest_port)
 
-        src_id = self.network.devices.get_device_id(final_src_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_src_dev)
-        dest_id = self.network.devices.get_device_id(final_dest_dev) if hasattr(self.network.devices, 'get_device_id') else self.names.query(final_dest_dev)
-        
-        if not src_id or not dest_id:
+        # Utilize native backend helper to reliably convert composite strings to valid system IDs
+        src_signal_str = f"{final_src_dev}.{final_src_port}" if final_src_port else final_src_dev
+        dest_signal_str = f"{final_dest_dev}.{final_dest_port}" if final_dest_port else final_dest_dev
+
+        [src_id, src_port_id] = self.devices.get_signal_ids(src_signal_str)
+        [dest_id, dest_port_id] = self.devices.get_signal_ids(dest_signal_str)
+
+        # Check explicitly if devices were correctly allocated in previous blocks
+        if self.devices.get_device(src_id) is None or self.devices.get_device(dest_id) is None:
             self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
             return
 
-        src_port_id = self.names.query(final_src_port) if final_src_port else None
-        dest_port_id = self.names.query(final_dest_port) if final_dest_port else None
-
         net_error = self.network.make_connection(src_id, src_port_id, dest_id, dest_port_id)
+        
         if net_error != self.network.NO_ERROR:
             if net_error == self.network.INPUT_CONNECTED:
                 self.report_error("ERR_215", f"Port fan-in constraint violation. Target input pin port already driven by an output source.")
             elif net_error in [self.network.DEVICE_ABSENT, self.network.PORT_ABSENT]:
-                self.report_error("ERR_211", f"Unresolved port or routing element mapping missing from target.")
-
+                self.report_error("ERR_211", f"Unresolved line routing assignment or invalid port mapping.")
+            elif hasattr(self.network, 'INPUT_TO_INPUT') and net_error in [self.network.INPUT_TO_INPUT, self.network.OUTPUT_TO_OUTPUT]:
+                self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
+            else:
+                self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
+    
     def trace_to_primitive_node(self, dev_path, initial_port):
         """Traverse structural container path steps to expose the inner flat target primitive node."""
         parts = dev_path.split(".")
@@ -580,7 +560,7 @@ class Parser:
         """Parse flat labels or compound path extensions using dot notation parsing.
         Contains Errors[110, 211, 214]"""
         dev_id = self.symbol.id
-        dev_str = self.names.get_string(dev_id)
+        dev_str = self.names.get_name_string(dev_id)
         pin_id = None
         self.symbol = self.scanner.get_symbol()
         if self.symbol.type == TokenType.DOT:

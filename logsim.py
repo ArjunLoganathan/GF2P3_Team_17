@@ -22,7 +22,7 @@ from monitors import Monitors
 from scanner import Scanner
 from parse import Parser
 from userint import UserInterface
-from gui import Gui
+from GUI.gui import Gui
 
 
 def main(arg_list):
@@ -43,14 +43,10 @@ def main(arg_list):
         sys.exit()
 
     # Initialise instances of the four inner simulator classes
-    # names = Names()
-    # devices = Devices(names)
-    # network = Network(names, devices)
-    # monitors = Monitors(names, devices, network)
     names = Names()
     devices = Devices(names)
-    network = Network(names,devices)
-    monitors = Monitors(names,devices,network)
+    network = Network(names, devices)
+    monitors = Monitors(names, devices, network)
 
     for option, path in options:
         if option == "-h":  # print the usage message
