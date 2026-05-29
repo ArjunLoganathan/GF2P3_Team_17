@@ -337,7 +337,7 @@ class Gui(wx.Frame):
         self.SetSizeHints(600, 600)
         self.SetSizer(main_sizer)
         self.update_controls()
-        self.canvas.render("Ready.")
+        wx.CallAfter(self.canvas.render, "Ready.")
 
     def on_menu(self, event):
         """Handle the event when the user selects a menu item."""
@@ -356,6 +356,7 @@ class Gui(wx.Frame):
         self.devices.cold_startup()
         if self.run_network(cycles):
             self.cycles_completed = cycles
+            self.update_controls()
             self.show_status("Ran for " + str(cycles) + " cycles.")
 
     def on_continue_button(self, event):
@@ -366,6 +367,7 @@ class Gui(wx.Frame):
             return
         if self.run_network(cycles):
             self.cycles_completed += cycles
+            self.update_controls()
             self.show_status("Continued for " + str(cycles) +
                              " cycles. Total: " +
                              str(self.cycles_completed) + ".")
@@ -426,6 +428,7 @@ class Gui(wx.Frame):
         """Refresh all switch and monitor choice controls."""
         self.update_switch_choices()
         self.update_monitor_choices()
+        self.update_button_states()
 
     def update_switch_choices(self):
         """Refresh the switch selector."""
@@ -458,6 +461,21 @@ class Gui(wx.Frame):
         self.add_monitor_choice.Set(available_names)
         if available_names:
             self.add_monitor_choice.SetSelection(0)
+
+    def update_button_states(self):
+        """Enable controls only when the related action is available."""
+        has_switches = bool(self.switch_choices)
+        has_monitors = bool(self.monitor_choices)
+        has_available_monitors = bool(self.available_monitor_choices)
+
+        self.continue_button.Enable(self.cycles_completed > 0)
+        self.switch_choice.Enable(has_switches)
+        self.switch_state.Enable(has_switches)
+        self.set_switch_button.Enable(has_switches)
+        self.add_monitor_choice.Enable(has_available_monitors)
+        self.add_monitor_button.Enable(has_available_monitors)
+        self.remove_monitor_choice.Enable(has_monitors)
+        self.remove_monitor_button.Enable(has_monitors)
 
     def show_status(self, message):
         """Display a status message and redraw the canvas."""
