@@ -685,7 +685,7 @@ class Parser:
             self.panic_recover([TokenType.SEMICOLON, TokenType.KEYWORD])
 
     def report_error(self, code_tag, specific_details=""):
-        """Report an error with a specific code and message."""
+        """Increment internal error counters and print clean, descriptive diagnostic messages."""
         self.error_count += 1
         error_messages = {
             "ERR_101": "Error 101: Unexpected end of file encountered before global 'END' sentinel.",
@@ -724,13 +724,21 @@ class Parser:
             "ERR_221": "Error 221: Circular dependency chain detected in file import statements.",
             "ERR_222": "Error 222: Interface boundary mismatch. Port referenced in main layout does not exist on imported macro."
         }
+        
+        # If the scanner provides a custom error print method, call it
         if hasattr(self.scanner, 'print_error_line'):
             self.scanner.print_error_line()
+            
+        # Extract the line number from the current symbol
+        line_num = getattr(self.symbol, 'line', 'Unknown')
+        
         base_msg = error_messages.get(code_tag, f"Unknown Error Condition [{code_tag}].")
+        
+        # Inject the line number securely into the final print statement
         if specific_details:
-            print(f"*** {base_msg} Details: {specific_details}\n")
+            print(f"*** Line {line_num} | {base_msg} Details: {specific_details}\n")
         else:
-            print(f"*** {base_msg}\n")
+            print(f"*** Line {line_num} | {base_msg}\n")
     
     def panic_recover(self, stop_tokens):
         """Panic mode error recovery: skip symbols until a sync token is found."""
