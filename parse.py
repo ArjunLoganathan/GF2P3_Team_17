@@ -129,7 +129,7 @@ class Parser:
         return self.error_count == 0  # Return True if no errors were found, False otherwise
     
     def parse_interface_ports_block(self, is_input=True):
-        """Parse INPUT_PORTS and OUTPUT_PORTS interface constraints for sub-circuit files. Contains Errors[102, 103, 104]"""
+        """Parse INPUT_PORTS and OUTPUT_PORTS interface constraints for subcircuit files. Contains Errors[102, 103, 104]"""
         block_kw_str = "INPUT_PORTS" if is_input else "OUTPUT_PORTS"
         block_id = self.names.query(block_kw_str)
         end_id = self.names.query("END")
@@ -171,38 +171,6 @@ class Parser:
         else:
             self.report_error("ERR_104", f"Block termination mismatch. Missing or malformed '{block_kw_str} END' clause.")
 
-    def resolve_and_connect_nodes(self, src_dev_path, src_port, dest_dev_path, dest_port):
-        """Trace macro interface connection chains and validate interface alignment constraints.
-        Contains Errors[211, 212, 213, 215, 216]"""
-        
-        # ensure the port references actually exist and aren't directionally flipped.
-        if not self.validate_macro_boundary_references(src_dev_path, src_port, expect_input=False):
-            return
-        if not self.validate_macro_boundary_references(dest_dev_path, dest_port, expect_input=True):
-            return
-
-        final_src_dev, final_src_port = self.trace_to_primitive_node(src_dev_path, src_port)
-        final_dest_dev, final_dest_port = self.trace_to_primitive_node(dest_dev_path, dest_port)
-
-        src_signal_str = f"{final_src_dev}.{final_src_port}" if final_src_port else final_src_dev
-        dest_signal_str = f"{final_dest_dev}.{final_dest_port}" if final_dest_port else final_dest_dev
-
-        [src_id, src_port_id] = self.devices.get_signal_ids(src_signal_str)
-        [dest_id, dest_port_id] = self.devices.get_signal_ids(dest_signal_str)
-
-        if self.devices.get_device(src_id) is None or self.devices.get_device(dest_id) is None:
-            self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")
-            return
-
-        net_error = self.network.make_connection(src_id, src_port_id, dest_id, dest_port_id)
-        if net_error != self.network.NO_ERROR:
-            if net_error == self.network.INPUT_CONNECTED:
-                self.report_error("ERR_215", f"Port fan-in constraint violation. Target input pin port already driven by an output source.")
-            elif net_error in [self.network.DEVICE_ABSENT, self.network.PORT_ABSENT]:
-                self.report_error("ERR_211", f"Unresolved line routing assignment or invalid port mapping.")
-            elif net_error in [self.network.INPUT_TO_INPUT, self.network.OUTPUT_TO_OUTPUT]:
-                self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
-            
     def validate_macro_boundary_references(self, dev_path, port_name, expect_input=True):
         """Scan connection assignments to catch ERR_222 and ERR_217 interface boundary violations.
         Contains Errors[214, 217, 222]"""
