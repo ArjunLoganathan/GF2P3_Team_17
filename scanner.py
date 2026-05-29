@@ -29,6 +29,7 @@ class Symbol:
         """Initialise symbol properties."""
         self.type = None
         self.id = None
+        self.line = None
 
 
 class Scanner:
@@ -60,6 +61,7 @@ class Scanner:
         self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE".split(" ")
         self.reserved_keyword_ids = self.names.lookup(self.reserved_keywords)
         self.source_file = self.read_file()
+        self.source_lines = self.read_lines()
 
         self.token_specification = [
             ('COMMENT',       r'\#.*|\\\*[\s\S]*?\*\\'),
@@ -87,10 +89,22 @@ class Scanner:
         except (OSError, IOError):
             raise FileNotFoundError("The provided path was not found!")
 
+    def read_lines(self):
+        """Open, read, and return the lines of the file."""
+        try:
+            with open(self.path, "r") as file:
+                return file.read()
+        except (OSError, IOError):
+            raise FileNotFoundError("The provided path was not found!")
+
+    def get_line_bounds(self):
+        line_starts = [self.file]
+
     def get_symbol(self):
         """Fetch the next valid symbol, skipping whitespace and comments."""
         for match in self.token_iterator:
             kind = match.lastgroup
+            start_index = match.span[0]
             value = match.group()
             
             if kind in ['WHITESPACE', 'COMMENT']:

@@ -1,13 +1,3 @@
-INPUT_PORTS:
-    A;
-    B;
-INPUT_PORTS END;
-
-OUTPUT_PORTS:
-    SUM;
-    COUT;
-OUTPUT_PORTS END;
-
 DEVICES:
     X1 = XOR;
     A1 = AND;
