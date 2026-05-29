@@ -4,7 +4,8 @@ from primativetypes import TokenType
 from names import Names
 
 '''
-Probably best if more tests are written but I'm unsure what else needs to be tested for the scanner.
+Probably best if more tests are written but I'm unsure what else needs to be tested for the scanner. 
+Perhaps write full files to test but that should be parsers job.
 '''
 
 @pytest.fixture
@@ -55,3 +56,23 @@ def test_scanner_punctuation(tmp_path, names_instance):
     assert scanner.get_symbol().type == TokenType.NUMBER
     assert scanner.get_symbol().type == TokenType.SEMICOLON
     assert scanner.get_symbol().type == TokenType.EOF
+
+def test_scanner_comments(tmp_path, names_instance):
+    """Test that comments are entirely ignored."""
+    text = "# This is a comment\nCONNECT:"
+    scanner = write_and_scan(tmp_path, text, names_instance)
+    
+    sym = scanner.get_symbol()
+    assert sym.type == TokenType.KEYWORD
+    assert names_instance.get_name_string(sym.id) == "CONNECT"
+
+def test_scanner_strings(tmp_path, names_instance):
+    """Test that double-quoted strings are parsed as TokenType.STRING."""
+    text = 'IMPORT: "adder.txt";'
+    scanner = write_and_scan(tmp_path, text, names_instance)
+    
+    assert scanner.get_symbol().type == TokenType.KEYWORD
+    assert scanner.get_symbol().type == TokenType.COLON
+    sym = scanner.get_symbol()
+    assert sym.type == TokenType.STRING
+    assert names_instance.get_name_string(sym.id) == '"adder.txt"'
