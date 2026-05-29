@@ -282,6 +282,7 @@ class Gui(wx.Frame):
         # Configure the file menu
         file_menu = wx.Menu()
         menu_bar = wx.MenuBar()
+        file_menu.Append(wx.ID_HELP, "&Help")
         file_menu.Append(wx.ID_ABOUT, "&About")
         file_menu.Append(wx.ID_EXIT, "&Exit")
         menu_bar.Append(file_menu, "&File")
@@ -359,6 +360,12 @@ class Gui(wx.Frame):
         menu_id = event.GetId()
         if menu_id == wx.ID_EXIT:
             self.Close(True)
+        if menu_id == wx.ID_HELP:
+            wx.MessageBox("Run: start from cycle 0 with cleared traces.\n"
+                          "Continue: add more cycles to the current run.\n"
+                          "Set Switch: choose a switch and set it to 0 or 1.\n"
+                          "Add/Remove Monitor: choose which outputs to show.",
+                          "Logsim Help", wx.ICON_INFORMATION | wx.OK)
         if menu_id == wx.ID_ABOUT:
             wx.MessageBox("Logic Simulator\nGraphical user interface",
                           "About Logsim", wx.ICON_INFORMATION | wx.OK)
