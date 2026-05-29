@@ -97,7 +97,7 @@ class MyGLCanvas(wxcanvas.GLCanvas):
 
         size = self.GetClientSize()
         self.render_text(self.status_text, 10, size.height - 20)
-        self.draw_monitor_traces(size.height)
+        self.draw_monitor_traces(size.width, size.height)
 
         # We have been drawing to the back buffer, flush the graphics pipeline
         # and swap the back buffer to the front
@@ -171,7 +171,7 @@ class MyGLCanvas(wxcanvas.GLCanvas):
         else:
             self.Refresh()  # triggers the paint event
 
-    def draw_monitor_traces(self, canvas_height):
+    def draw_monitor_traces(self, canvas_width, canvas_height):
         """Draw the recorded signal traces for all current monitors."""
         if not self.monitors.monitors_dictionary:
             self.render_text("No monitor points selected.", 10,
@@ -179,13 +179,21 @@ class MyGLCanvas(wxcanvas.GLCanvas):
             return
 
         left_margin = 130
-        cycle_width = 20
+        right_margin = 20
         row_height = 55
         first_row_y = canvas_height - 95
+        longest_trace = max(
+            len(signal_list)
+            for signal_list in self.monitors.monitors_dictionary.values())
+        drawable_width = max(1, canvas_width - left_margin - right_margin)
+        cycle_width = min(20, max(8, drawable_width / max(1, longest_trace)))
 
         for row, ((device_id, output_id), signal_list) in enumerate(
                 self.monitors.monitors_dictionary.items()):
             base_y = first_row_y - row * row_height
+            if base_y < 25:
+                self.render_text("More monitors below...", 10, 10)
+                break
             low_y = base_y
             high_y = base_y + 22
             label = self.devices.get_signal_name(device_id, output_id)
@@ -209,6 +217,10 @@ class MyGLCanvas(wxcanvas.GLCanvas):
                     self.draw_line(x_start, low_y, x_end, high_y)
                 elif signal == self.devices.FALLING:
                     self.draw_line(x_start, high_y, x_end, low_y)
+                elif signal == self.devices.BLANK:
+                    GL.glColor3f(0.6, 0.6, 0.6)
+                    self.draw_line(x_start, low_y + 11, x_end, low_y + 11)
+                    GL.glColor3f(0.0, 0.0, 1.0)
 
     def draw_line(self, x_start, y_start, x_end, y_end):
         """Draw a single straight line."""
