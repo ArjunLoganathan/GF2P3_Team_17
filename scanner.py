@@ -57,14 +57,12 @@ class Scanner:
         Need to write more tests and error correction codes"""
         self.path = path
         self.names = names
-        self.current_symbol = None
-        self.reserved_keywords = (
-            "IMPORT FROM INPUT_PORTS OUTPUT_PORTS DEVICES CONNECT MONITOR "
-            "END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE"
-        ).split(" ")
+        # self.current_symbol = None
+        self.current_line = 0
+        self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE".split(" ")
         self.reserved_keyword_ids = self.names.lookup(self.reserved_keywords)
         self.source_file = self.read_file()
-        self.source_lines = self.read_lines()
+        self.line_starts = [0] + [m.end() for m in re.finditer(r'\n', self.source_file)]
 
         self.token_specification = [
             ('COMMENT',       r'\#.*|\\\*[\s\S]*?\*\\'),
@@ -92,21 +90,15 @@ class Scanner:
         except (OSError, IOError):
             raise FileNotFoundError("The provided path was not found!")
 
-    def read_lines(self):
-        """Open, read, and return the lines of the file."""
-        try:
-            with open(self.path, "r") as file:
-                return file.read()
-        except (OSError, IOError):
-            raise FileNotFoundError("The provided path was not found!")
-
-    def get_line_bounds(self):
-        line_starts = [self.file]
-
     def get_symbol(self):
         """Fetch the next valid symbol, skipping whitespace and comments."""
         for match in self.token_iterator:
             kind = match.lastgroup
+            start_index = match.span()[0]
+            if self.current_line < len(self.line_starts):
+                if start_index <= self.line_starts[self.current_line]:
+                    self.current_line += 1
+
             value = match.group()
             
             if kind in ['WHITESPACE', 'COMMENT']:
@@ -114,7 +106,8 @@ class Scanner:
                 
             symbol = Symbol()
             symbol.id = self.names.lookup([value])[0]
-            
+            symbol.line = self.current_line
+
             if kind == 'NAME':
                 if symbol.id in self.reserved_keyword_ids:
                     symbol.type = TokenType.KEYWORD
