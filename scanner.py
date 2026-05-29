@@ -9,7 +9,7 @@ Scanner - reads definition file and translates characters into symbols.
 Symbol - encapsulates a symbol and stores its properties.
 """
 from primativetypes import TokenType
-import regex as re
+import re
 
 
 class Symbol:
@@ -58,7 +58,10 @@ class Scanner:
         self.path = path
         self.names = names
         self.current_symbol = None
-        self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE".split(" ")
+        self.reserved_keywords = (
+            "IMPORT FROM INPUT_PORTS OUTPUT_PORTS DEVICES CONNECT MONITOR "
+            "END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE"
+        ).split(" ")
         self.reserved_keyword_ids = self.names.lookup(self.reserved_keywords)
         self.source_file = self.read_file()
         self.source_lines = self.read_lines()
@@ -68,7 +71,7 @@ class Scanner:
             ('WHITESPACE',    r'\s+'),
             ('STRING',        r'"[^"\n]*"'),
             ('NUMBER',        r'\d+'),
-            ('NAME',          r'[a-zA-Z][a-zA-Z0-9]*'),
+            ('NAME',          r'[a-zA-Z_][a-zA-Z0-9_]*'),
             ('SEMICOLON',     r';'),
             ('COLON',         r':'),
             ('EQUALS',        r'='),
@@ -104,7 +107,6 @@ class Scanner:
         """Fetch the next valid symbol, skipping whitespace and comments."""
         for match in self.token_iterator:
             kind = match.lastgroup
-            start_index = match.span[0]
             value = match.group()
             
             if kind in ['WHITESPACE', 'COMMENT']:

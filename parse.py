@@ -143,7 +143,7 @@ class Parser:
 
         # Loop and pull signal pin name strings
         while self.symbol.type == TokenType.NAME:
-            port_str = self.names.get_name_string(self.symbol.id)
+            port_str = self.names.get_string(self.symbol.id)
             if is_input:
                 self.current_blueprint.input_ports.add(port_str)
             else:
@@ -242,7 +242,7 @@ class Parser:
     def parse_import_rule(self):
         """Parse an individual macro cross-file registration string rule. Contains Errors[102, 108, 109, 201, 202, 221]"""
         custom_name_id = self.symbol.id
-        custom_string = self.names.get_name_string(custom_name_id)
+        custom_string = self.names.get_string(custom_name_id)
 
         # Semantic verification: Custom names cannot overwrite system primitives
         if custom_name_id in self.primitive_ids or custom_string in self.primitive_keywords:
@@ -264,7 +264,7 @@ class Parser:
             self.report_error("ERR_108", "Missing file mapping path assignment direction. Expected 'FROM' keyword.")
 
         if self.symbol.type == TokenType.STRING:
-            file_path_raw = self.names.get_name_string(self.symbol.id)
+            file_path_raw = self.names.get_string(self.symbol.id)
             file_path_str = file_path_raw.strip('"\'')
             self.symbol = self.scanner.get_symbol()
         else:
@@ -343,7 +343,7 @@ class Parser:
     def parse_device_declaration(self, prefix=""):
         """Instantiate logic device modules onto the internal simulator structure engine. Contains Errors[102, 106, 107, 110, 205, 206, 207, 208, 209, 210]"""
         device_name_id = self.symbol.id
-        device_name_str = self.names.get_name_string(device_name_id)
+        device_name_str = self.names.get_string(device_name_id)
         
         scoped_name_str = f"{prefix}.{device_name_str}" if prefix else device_name_str
         scoped_name_id = self.names.lookup([scoped_name_str])[0]
@@ -372,14 +372,14 @@ class Parser:
 
         parameter_val = None
         if self.symbol.type == TokenType.NUMBER:
-            parameter_val = int(self.names.get_name_string(self.symbol.id))
+            parameter_val = int(self.names.get_string(self.symbol.id))
             self.symbol = self.scanner.get_symbol()
             if not is_primitive:
                 self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments. (Or custom macro '{device_name_str}')")
         else:
             # Enforce required parameters for structural primitives that expect them
             if is_primitive:
-                type_str = self.names.get_name_string(device_type_id)
+                type_str = self.names.get_string(device_type_id)
                 if type_str in ["SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR"]:
                     self.report_error("ERR_107", "Expected a valid device parameter or configuration state integer.")
 
@@ -391,7 +391,7 @@ class Parser:
                     self.instantiated_types[scoped_name_id] = device_type_id
                     self.flatten_macro_to_hardware(scoped_name_str, device_type_id)
                 else:
-                    type_str = self.names.get_name_string(device_type_id)
+                    type_str = self.names.get_string(device_type_id)
                     
                     if type_str == "SWITCH" and (parameter_val is None or parameter_val not in [0, 1]):
                         self.report_error("ERR_208", f"Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1 on '{device_name_str}'.")
@@ -430,6 +430,10 @@ class Parser:
                 self.devices.make_device(combined_name_id, inner_type_id, inner_prop)
 
         for src_dev, src_p, dest_dev, dest_p in macro_blueprint.connections:
+            if src_dev in macro_blueprint.input_ports and src_p is None:
+                continue
+            if dest_dev in macro_blueprint.output_ports and dest_p is None:
+                continue
             flat_src_dev = f"{instance_prefix}.{src_dev}"
             flat_dest_dev = f"{instance_prefix}.{dest_dev}"
             self.resolve_and_connect_nodes(flat_src_dev, src_p, flat_dest_dev, dest_p)
@@ -490,7 +494,7 @@ class Parser:
                 self.report_error("ERR_110", "Invalid alphanumeric token layout format intercepted by Lexical Scanner.")
                 return None, None
             
-            segments.append(self.names.get_name_string(self.symbol.id))
+            segments.append(self.names.get_string(self.symbol.id))
             self.symbol = self.scanner.get_symbol()
             
             if self.symbol.type == TokenType.DOT:
@@ -505,6 +509,15 @@ class Parser:
     
     def resolve_and_connect_nodes(self, src_dev_path, src_port, dest_dev_path, dest_port):
         """Trace macro interface connection chains and validate interface alignment constraints."""
+        macro_output = self.resolve_macro_output(src_dev_path, src_port)
+        if macro_output is not None:
+            src_dev_path, src_port = macro_output
+
+        if self.is_macro_input(dest_dev_path, dest_port):
+            self.connect_to_macro_input(src_dev_path, src_port,
+                                        dest_dev_path, dest_port)
+            return
+
         if not self.validate_macro_boundary_references(src_dev_path, src_port, expect_input=False):
             return
         if not self.validate_macro_boundary_references(dest_dev_path, dest_port, expect_input=True):
@@ -536,6 +549,50 @@ class Parser:
                 self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
             else:
                 self.report_error("ERR_216", f"Directional typing error. Signal linkages must traverse strictly from Output to Input ports.")
+
+    def get_macro_blueprint(self, dev_path):
+        """Return the blueprint for a macro instance path, or None."""
+        dev_id = self.names.query(dev_path)
+        if dev_id in self.instantiated_types:
+            type_id = self.instantiated_types[dev_id]
+            return self.custom_types[type_id]
+        return None
+
+    def is_macro_input(self, dev_path, port_name):
+        """Return True if the signal names a macro input boundary."""
+        blueprint = self.get_macro_blueprint(dev_path)
+        return blueprint is not None and port_name in blueprint.input_ports
+
+    def resolve_macro_output(self, dev_path, port_name):
+        """Map a macro output boundary to its internal primitive output."""
+        blueprint = self.get_macro_blueprint(dev_path)
+        if blueprint is None or port_name not in blueprint.output_ports:
+            return None
+
+        for src_dev, src_port, dest_dev, dest_port in blueprint.connections:
+            if dest_dev == port_name and dest_port is None:
+                return f"{dev_path}.{src_dev}", src_port
+
+        self.report_error("ERR_222", f"Macro output '{port_name}' has no internal source.")
+        return None
+
+    def connect_to_macro_input(self, src_dev_path, src_port, dest_dev_path, dest_port):
+        """Connect an external source to all internal loads on a macro input."""
+        blueprint = self.get_macro_blueprint(dest_dev_path)
+        if blueprint is None:
+            return
+
+        connected = False
+        for inner_src, inner_src_port, inner_dest, inner_dest_port in blueprint.connections:
+            if inner_src == dest_port and inner_src_port is None:
+                connected = True
+                self.resolve_and_connect_nodes(
+                    src_dev_path, src_port,
+                    f"{dest_dev_path}.{inner_dest}", inner_dest_port
+                )
+
+        if not connected:
+            self.report_error("ERR_222", f"Macro input '{dest_port}' has no internal destination.")
     
     def trace_to_primitive_node(self, dev_path, initial_port):
         """Traverse structural container path steps to expose the inner flat target primitive node."""
@@ -560,7 +617,7 @@ class Parser:
         """Parse flat labels or compound path extensions using dot notation parsing.
         Contains Errors[110, 211, 214]"""
         dev_id = self.symbol.id
-        dev_str = self.names.get_name_string(dev_id)
+        dev_str = self.names.get_string(dev_id)
         pin_id = None
         self.symbol = self.scanner.get_symbol()
         if self.symbol.type == TokenType.DOT:
@@ -609,6 +666,9 @@ class Parser:
         """Parse an individual monitor rule."""
         dev_path_str, pin_str = self.parse_composite_signal_path()
         if self.error_count == 0 and dev_path_str:
+            macro_output = self.resolve_macro_output(dev_path_str, pin_str)
+            if macro_output is not None:
+                dev_path_str, pin_str = macro_output
             final_dev_str, final_pin_str = self.trace_to_primitive_node(dev_path_str, pin_str)
             dev_id = self.names.lookup([final_dev_str])[0]
             pin_id = self.names.lookup([final_pin_str])[0] if final_pin_str else None
