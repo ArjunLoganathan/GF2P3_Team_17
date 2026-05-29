@@ -58,9 +58,11 @@ class Scanner:
         self.path = path
         self.names = names
         # self.current_symbol = None
-        self.current_line = 0
-        self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE".split(" ")
-        self.reserved_keyword_ids = self.names.lookup(self.reserved_keywords)
+        self.current_line = 1
+        # self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE INPUT_PORTS OUTPUT_PORTS".split(" ")
+        # self.reserved_keyword_ids = self.names.lookup(self.reserved_keywords)
+        self.reserved_keywords = self.names.reserved_keywords
+        self.reserved_keyword_ids = self.names.reserved_keyword_ids
         self.source_file = self.read_file()
         self.line_starts = [0] + [m.end() for m in re.finditer(r'\n', self.source_file)]
 
@@ -82,6 +84,12 @@ class Scanner:
 
         self.token_iterator = self.master_regex.finditer(self.source_file)
 
+    def print_error_line(self):
+        try:
+            print(f"Error on line {self.current_line}")
+        except:
+            raise Exception("Error finding current line when doing error ting - thign should never call idk why its hers")
+
     def read_file(self):
         """Open, read, and return the entire text of the file."""
         try:
@@ -95,8 +103,11 @@ class Scanner:
         for match in self.token_iterator:
             kind = match.lastgroup
             start_index = match.span()[0]
+            print(self.line_starts)
+            print(start_index)
             if self.current_line < len(self.line_starts):
-                if start_index <= self.line_starts[self.current_line]:
+                print(start_index,self.line_starts[self.current_line])
+                if start_index >= self.line_starts[self.current_line]:
                     self.current_line += 1
 
             value = match.group()
