@@ -294,6 +294,8 @@ class Gui(wx.Frame):
         self.file_text = wx.StaticText(self, wx.ID_ANY, "File: " + path)
         self.cycle_text = wx.StaticText(self, wx.ID_ANY, "Cycles")
         self.spin = wx.SpinCtrl(self, wx.ID_ANY, "10", min=0, max=100000)
+        self.completed_text = wx.StaticText(self, wx.ID_ANY,
+                                            "Completed cycles: 0")
         self.run_button = wx.Button(self, wx.ID_ANY, "Run")
         self.continue_button = wx.Button(self, wx.ID_ANY, "Continue")
         self.switch_text = wx.StaticText(self, wx.ID_ANY, "Switch")
@@ -329,6 +331,7 @@ class Gui(wx.Frame):
         side_sizer.Add(self.file_text, 0, wx.ALL | wx.EXPAND, 5)
         side_sizer.Add(self.cycle_text, 0, wx.ALL, 5)
         side_sizer.Add(self.spin, 0, wx.ALL | wx.EXPAND, 5)
+        side_sizer.Add(self.completed_text, 0, wx.ALL | wx.EXPAND, 5)
         side_sizer.Add(self.run_button, 0, wx.ALL | wx.EXPAND, 5)
         side_sizer.Add(self.continue_button, 0, wx.ALL | wx.EXPAND, 5)
         side_sizer.AddSpacer(15)
@@ -369,6 +372,7 @@ class Gui(wx.Frame):
         if self.run_network(cycles):
             self.cycles_completed = cycles
             self.update_controls()
+            self.update_cycle_text()
             self.show_status("Ran for " + str(cycles) + " cycles.")
 
     def on_continue_button(self, event):
@@ -380,6 +384,7 @@ class Gui(wx.Frame):
         if self.run_network(cycles):
             self.cycles_completed += cycles
             self.update_controls()
+            self.update_cycle_text()
             self.show_status("Continued for " + str(cycles) +
                              " cycles. Total: " +
                              str(self.cycles_completed) + ".")
@@ -441,6 +446,7 @@ class Gui(wx.Frame):
         self.update_switch_choices()
         self.update_monitor_choices()
         self.update_button_states()
+        self.update_cycle_text()
 
     def update_switch_choices(self):
         """Refresh the switch selector."""
@@ -451,9 +457,7 @@ class Gui(wx.Frame):
             if switch_name is not None:
                 switch_names.append(switch_name)
                 self.switch_choices[switch_name] = switch_id
-        self.switch_choice.Set(switch_names)
-        if switch_names:
-            self.switch_choice.SetSelection(0)
+        self.set_choice_items(self.switch_choice, switch_names)
 
     def update_monitor_choices(self):
         """Refresh the monitor selectors."""
@@ -467,12 +471,17 @@ class Gui(wx.Frame):
             self.available_monitor_choices[name] = tuple(
                 self.devices.get_signal_ids(name))
 
-        self.remove_monitor_choice.Set(monitored_names)
-        if monitored_names:
-            self.remove_monitor_choice.SetSelection(0)
-        self.add_monitor_choice.Set(available_names)
-        if available_names:
-            self.add_monitor_choice.SetSelection(0)
+        self.set_choice_items(self.remove_monitor_choice, monitored_names)
+        self.set_choice_items(self.add_monitor_choice, available_names)
+
+    def set_choice_items(self, choice, items):
+        """Refresh a choice control while preserving its selection."""
+        previous_selection = choice.GetStringSelection()
+        choice.Set(items)
+        if previous_selection in items:
+            choice.SetStringSelection(previous_selection)
+        elif items:
+            choice.SetSelection(0)
 
     def update_button_states(self):
         """Enable controls only when the related action is available."""
@@ -488,6 +497,11 @@ class Gui(wx.Frame):
         self.add_monitor_button.Enable(has_available_monitors)
         self.remove_monitor_choice.Enable(has_monitors)
         self.remove_monitor_button.Enable(has_monitors)
+
+    def update_cycle_text(self):
+        """Display the number of completed simulation cycles."""
+        self.completed_text.SetLabel("Completed cycles: " +
+                                     str(self.cycles_completed))
 
     def show_status(self, message):
         """Display a status message and redraw the canvas."""
