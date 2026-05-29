@@ -1,0 +1,30 @@
+INPUT_PORTS:
+    A;
+    B;
+INPUT_PORTS END;
+
+OUTPUT_PORTS:
+    SUM;
+    COUT;
+OUTPUT_PORTS END;
+
+DEVICES:
+    A = SWITCH 0;
+    B = SWITCH 1; 
+    X1 = XOR;
+    A1 = AND 2;
+DEVICES END;
+
+CONNECT:
+    A = X1.I1;
+    B = X1.I2;
+    A = A1.I1;
+    B = A1.I2;
+CONNECT END;
+
+MONITOR: 
+    X1;
+    A1;
+MONITOR END;
+
+END
