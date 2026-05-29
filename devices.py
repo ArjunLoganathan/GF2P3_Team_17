@@ -202,13 +202,19 @@ class Devices:
 
     def get_signal_ids(self, signal_name):
         """Return the device and output IDs of the specified signal."""
-        name_string_list = signal_name.split(".")
-        name_id_list = self.names.lookup(name_string_list)
-        device_id = name_id_list[0]
-        if len(name_id_list) == 2:
-            output_id = name_id_list[1]
+        name_parts = signal_name.split(".")
+        if len(name_parts) == 1:
+            device_name = name_parts[0]
+            output_name = None
         else:
+            device_name = ".".join(name_parts[:-1])
+            output_name = name_parts[-1]
+
+        [device_id] = self.names.lookup([device_name])
+        if output_name is None:
             output_id = None
+        else:
+            [output_id] = self.names.lookup([output_name])
 
         return [device_id, output_id]
 

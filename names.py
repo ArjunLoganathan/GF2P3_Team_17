@@ -80,11 +80,15 @@ class Names:
         return name_ids
 
 
-    def get_string(self, name_id):
+    def get_name_string(self, name_id):
         """Return the corresponding name string for name_id.
 
         If the name_id is not an index in the names list, return None.
         """
         if 0 <= name_id < len(self.name_id_strings):
             return self.name_id_strings[name_id]
-        return None    
+        return None
+
+    def get_string(self, name_id):
+        """Return the corresponding name string for name_id."""
+        return self.get_name_string(name_id)

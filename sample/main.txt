@@ -1,16 +1,16 @@
 IMPORT:
-    HALF_ADDER FROM "samples/half_adder.txt";
+    HALFA FROM "sample/half_adder.txt";
 IMPORT END;
 
 DEVICES:
-    SWITCH_A = SWITCH 0;
-    SWITCH_B = SWITCH 1;
-    HA0 = HALF_ADDER;
+    SWA = SWITCH 0;
+    SWB = SWITCH 1;
+    HA0 = HALFA;
 DEVICES END;
 
 CONNECT:
-    SWITCH_A = HA0.A;
-    SWITCH_B = HA0.B;
+    SWA = HA0.A;
+    SWB = HA0.B;
 CONNECT END;
 
 MONITOR:

@@ -9,7 +9,7 @@ Scanner - reads definition file and translates characters into symbols.
 Symbol - encapsulates a symbol and stores its properties.
 """
 from primativetypes import TokenType
-import regex as re
+import re
 
 
 class Symbol:
@@ -69,7 +69,7 @@ class Scanner:
             ('WHITESPACE',    r'\s+'),
             ('STRING',        r'"[^"\n]*"'),
             ('NUMBER',        r'\d+'),
-            ('NAME',          r'[a-zA-Z][a-zA-Z0-9]*'),
+            ('NAME',          r'[a-zA-Z_][a-zA-Z0-9_]*'),
             ('SEMICOLON',     r';'),
             ('COLON',         r':'),
             ('EQUALS',        r'='),
