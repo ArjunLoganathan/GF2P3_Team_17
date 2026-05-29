@@ -71,7 +71,7 @@ class Names:
         """
         name_ids = []
         for name in name_string_list:
-            if name in self.name_id_strings:
+            if name in self.name_id_mapping:
                 name_ids.append(self.name_id_mapping[name])
             else:
                 name_ids.append(len(self.name_id_strings))
