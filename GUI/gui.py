@@ -470,13 +470,22 @@ class Gui(wx.Frame):
         """Refresh the monitor selectors."""
         self.monitor_choices = {}
         self.available_monitor_choices = {}
-        monitored_names, available_names = self.monitors.get_signal_names()
+        monitored_names = []
+        available_names = []
 
-        for name in monitored_names:
-            self.monitor_choices[name] = tuple(self.devices.get_signal_ids(name))
-        for name in available_names:
-            self.available_monitor_choices[name] = tuple(
-                self.devices.get_signal_ids(name))
+        for device_id, output_id in self.monitors.monitors_dictionary:
+            name = self.devices.get_signal_name(device_id, output_id)
+            monitored_names.append(name)
+            self.monitor_choices[name] = (device_id, output_id)
+
+        for device_id in self.devices.find_devices():
+            device = self.devices.get_device(device_id)
+            for output_id in device.outputs:
+                if (device_id, output_id) not in self.monitors.monitors_dictionary:
+                    name = self.devices.get_signal_name(device_id, output_id)
+                    available_names.append(name)
+                    self.available_monitor_choices[name] = (device_id,
+                                                            output_id)
 
         self.set_choice_items(self.remove_monitor_choice, monitored_names)
         self.set_choice_items(self.add_monitor_choice, available_names)
