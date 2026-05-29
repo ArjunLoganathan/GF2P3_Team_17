@@ -59,7 +59,7 @@ class Scanner:
         self.current_symbol = None
         self.reservered_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE".split(" ")
         self.reservered_keyword_ids = self.names.lookup(self.reservered_keywords)
-        self.file = self.open_file(path)
+        self.file = self.open_file()
 
     def get_symbol(self):
         """Translate the next sequence of characters into a symbol."""
@@ -95,7 +95,7 @@ class Scanner:
         try:
             char = self.file.read(1)
             if char != "" and char.isspace():
-                return self.get_next_non_whitespace_character(self.file)
+                return self.get_next_non_whitespace_character()
             return char
         except:
             raise Exception(f"Exception - Error in non-whitespace reader!")
@@ -107,8 +107,8 @@ class Scanner:
         try:
             char = self.get_next_non_whitespace_character()
             while not char.isalnum():
-                if char == ";":
-                    return [None,";"]
+                if re.match("[\;\:\=]",char):
+                    return [None,char]
                 char = self.get_next_non_whitespace_character()
         
             temp_str = ""
