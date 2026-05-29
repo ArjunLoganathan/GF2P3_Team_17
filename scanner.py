@@ -57,8 +57,8 @@ class Scanner:
         self.path = path
         self.names = names
         self.current_symbol = None
-        self.reservered_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE".split(" ")
-        self.reservered_keyword_ids = self.names.lookup(self.reservered_keywords)
+        self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE".split(" ")
+        self.reserved_keyword_ids = self.names.lookup(self.reserved_keywords)
         self.source_file = self.read_file()
 
         self.token_specification = [
