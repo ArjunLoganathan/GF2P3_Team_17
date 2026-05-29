@@ -104,7 +104,7 @@ class Devices:
 
         self.devices_list = []
 
-        gate_strings = ["AND", "OR", "NAND", "NOR", "XOR"]
+        gate_strings = ["AND", "OR", "NAND", "NOR", "XOR", "NOT"]
         device_strings = ["CLOCK", "SWITCH", "DTYPE"]
         dtype_inputs = ["CLK", "SET", "CLEAR", "DATA"]
         dtype_outputs = ["Q", "QBAR"]
@@ -115,8 +115,10 @@ class Devices:
 
         self.signal_types = [self.LOW, self.HIGH, self.RISING,
                              self.FALLING, self.BLANK] = range(5)
+        
         self.gate_types = [self.AND, self.OR, self.NAND, self.NOR,
-                           self.XOR] = self.names.lookup(gate_strings)
+                           self.XOR, self.NOT] = self.names.lookup(gate_strings)
+                           
         self.device_types = [self.CLOCK, self.SWITCH,
                              self.D_TYPE] = self.names.lookup(device_strings)
         self.dtype_input_ids = [self.CLK_ID, self.SET_ID, self.CLEAR_ID,
@@ -246,10 +248,14 @@ class Devices:
         self.add_device(device_id, device_kind)
         self.add_output(device_id, output_id=None)
 
-        for input_number in range(1, no_of_inputs + 1):
-            input_name = "".join(["I", str(input_number)])
-            [input_id] = self.names.lookup([input_name])
-            self.add_input(device_id, input_id)
+        # Single-input gates (like NOT) don't use input pin numeric suffixes
+        if no_of_inputs == 1:
+            self.add_input(device_id, input_id=None)
+        else:
+            for input_number in range(1, no_of_inputs + 1):
+                input_name = "".join(["I", str(input_number)])
+                [input_id] = self.names.lookup([input_name])
+                self.add_input(device_id, input_id)
 
     def make_d_type(self, device_id):
         """Make a D-type device."""
@@ -315,7 +321,13 @@ class Devices:
                 else:
                     self.make_gate(device_id, device_kind, 2)
                     error_type = self.NO_ERROR
-            else:  # other gates
+            elif device_kind == self.NOT:  
+                if device_property is not None:
+                    error_type = self.QUALIFIER_PRESENT
+                else:
+                    self.make_gate(device_id, device_kind, 1)
+                    error_type = self.NO_ERROR
+            else:  # multi-input gates (AND, OR, NAND, NOR)
                 if device_property is None:
                     error_type = self.NO_QUALIFIER
                 elif device_property not in range(1, 17):  # between 1 and 16
