@@ -457,9 +457,7 @@ class Gui(wx.Frame):
             if switch_name is not None:
                 switch_names.append(switch_name)
                 self.switch_choices[switch_name] = switch_id
-        self.switch_choice.Set(switch_names)
-        if switch_names:
-            self.switch_choice.SetSelection(0)
+        self.set_choice_items(self.switch_choice, switch_names)
 
     def update_monitor_choices(self):
         """Refresh the monitor selectors."""
@@ -473,12 +471,17 @@ class Gui(wx.Frame):
             self.available_monitor_choices[name] = tuple(
                 self.devices.get_signal_ids(name))
 
-        self.remove_monitor_choice.Set(monitored_names)
-        if monitored_names:
-            self.remove_monitor_choice.SetSelection(0)
-        self.add_monitor_choice.Set(available_names)
-        if available_names:
-            self.add_monitor_choice.SetSelection(0)
+        self.set_choice_items(self.remove_monitor_choice, monitored_names)
+        self.set_choice_items(self.add_monitor_choice, available_names)
+
+    def set_choice_items(self, choice, items):
+        """Refresh a choice control while preserving its selection."""
+        previous_selection = choice.GetStringSelection()
+        choice.Set(items)
+        if previous_selection in items:
+            choice.SetStringSelection(previous_selection)
+        elif items:
+            choice.SetSelection(0)
 
     def update_button_states(self):
         """Enable controls only when the related action is available."""
