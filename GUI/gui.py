@@ -222,11 +222,15 @@ class MyGLCanvas(wxcanvas.GLCanvas):
                     self.draw_line(x_start, low_y + 11, x_end, low_y + 11)
                     GL.glColor3f(0.0, 0.0, 1.0)
 
-    def draw_line(self, x_start, y_start, x_end, y_end):
+    def draw_line(self, x_start, y_start, x_end, y_end, thickness = 1.0):
         """Draw a single straight line."""
+        # GL.glLineWidth(1.0)        
         GL.glBegin(GL.GL_LINES)
         GL.glVertex2f(x_start, y_start)
         GL.glVertex2f(x_end, y_end)
+
+        # Reset to thickness of 1
+        # GL.glLineWidth(1.0)        
         GL.glEnd()
 
     def render_text(self, text, x_pos, y_pos):
