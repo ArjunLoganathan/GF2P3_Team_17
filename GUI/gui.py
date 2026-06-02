@@ -153,7 +153,6 @@ class Gui(wx.Frame):
         if self.run_network(cycles):
             self.cycles_completed = cycles
             self.update_controls()
-            self.update_cycle_text()
             self.show_status("Ran for " + str(cycles) + " cycles.")
 
     def on_continue_button(self, event):
@@ -165,7 +164,6 @@ class Gui(wx.Frame):
         if self.run_network(cycles):
             self.cycles_completed += cycles
             self.update_controls()
-            self.update_cycle_text()
             self.show_status("Continued for " + str(cycles) +
                              " cycles. Total: " +
                              str(self.cycles_completed) + ".")

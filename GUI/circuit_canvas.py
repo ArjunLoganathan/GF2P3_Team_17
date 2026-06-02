@@ -28,6 +28,21 @@ class CircuitCanvas(wxcanvas.GLCanvas):
         self.output_pin_positions = {}
         self.input_wire_positions = {}
         self.output_wire_positions = {}
+        self.layout_nodes = {}
+        self.layout_edges = []
+        self.feedback_edges = []
+        self.edge_routes = []
+        self.junction_points = []
+        self.diagram_bounds = (0, 0, 0, 0)
+
+        # Layout geometry constants, set up in calculate_layout.
+        self.layout_origin_x = 90
+        self.column_width = 330
+        self.box_width = 160
+        self.max_layer = 0
+        self.gutter_lane_used = {}
+        self.top_bus_used = 0
+        self.bottom_bus_used = 0
 
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_SIZE, self.on_size)
@@ -66,12 +81,6 @@ class CircuitCanvas(wxcanvas.GLCanvas):
 
     def on_paint(self, event):
         """Handle the paint event."""
-        if not self.IsShownOnScreen():
-            return
-        self.SetCurrent(self.context)
-        if not self.init:
-            self.init_gl()
-            self.init = True
         self.render()
 
     def on_size(self, event):
@@ -115,39 +124,310 @@ class CircuitCanvas(wxcanvas.GLCanvas):
         self.draw_connections()
         self.draw_devices()
 
+    def build_graph(self):
+        """Build device nodes and connection edges from the simulator data."""
+        self.layout_nodes = {}
+        self.layout_edges = []
+
+        for index, device in enumerate(self.devices.devices_list):
+            self.layout_nodes[device.device_id] = {
+                "device": device,
+                "order": index,
+                "layer": 0,
+                "width": 0,
+                "height": 0,
+            }
+
+        for device in self.devices.devices_list:
+            for input_id, connected_output in device.inputs.items():
+                if connected_output is None:
+                    continue
+                output_device_id, output_id = connected_output
+                if output_device_id not in self.layout_nodes:
+                    continue
+                self.layout_edges.append({
+                    "source_device": output_device_id,
+                    "source_port": output_id,
+                    "target_device": device.device_id,
+                    "target_port": input_id,
+                })
+
+    def assign_layers(self):
+        """Assign readable left-to-right layers for devices."""
+        for node in self.layout_nodes.values():
+            device = node["device"]
+            if device.device_kind in [self.devices.SWITCH, self.devices.CLOCK]:
+                node["layer"] = 0
+            elif device.device_kind == self.devices.D_TYPE:
+                node["layer"] = 2
+            else:
+                node["layer"] = 1
+
+        for _ in range(len(self.layout_nodes)):
+            changed = False
+            for edge in self.layout_edges:
+                source = self.layout_nodes[edge["source_device"]]
+                target = self.layout_nodes[edge["target_device"]]
+                source_device = source["device"]
+                target_device = target["device"]
+
+                if target_device.device_kind == self.devices.D_TYPE:
+                    continue
+                if source_device.device_kind == self.devices.D_TYPE:
+                    continue
+
+                wanted_layer = source["layer"] + 1
+                if wanted_layer > target["layer"]:
+                    target["layer"] = wanted_layer
+                    changed = True
+            if not changed:
+                break
+
+        highest_logic_layer = 1
+        for node in self.layout_nodes.values():
+            if node["device"].device_kind != self.devices.D_TYPE:
+                highest_logic_layer = max(highest_logic_layer, node["layer"])
+
+        for node in self.layout_nodes.values():
+            if node["device"].device_kind == self.devices.D_TYPE:
+                node["layer"] = highest_logic_layer + 1
+
+    def order_layers(self, layers):
+        """Order nodes within each layer to reduce wire crossings.
+
+        Uses a light barycenter pass: each node is placed near the average
+        rank of the devices that feed it in earlier layers.
+        """
+        predecessors = {}
+        for edge in self.layout_edges:
+            predecessors.setdefault(edge["target_device"], []).append(
+                edge["source_device"])
+
+        ranks = {}
+        for layer in sorted(layers):
+            layer_nodes = layers[layer]
+            if layer == min(layers):
+                layer_nodes.sort(key=lambda item: item["order"])
+            else:
+                def barycenter(node):
+                    sources = predecessors.get(node["device"].device_id, [])
+                    source_ranks = [ranks[s] for s in sources if s in ranks]
+                    if source_ranks:
+                        return sum(source_ranks) / len(source_ranks)
+                    return node["order"]
+                layer_nodes.sort(key=barycenter)
+            for rank, node in enumerate(layer_nodes):
+                ranks[node["device"].device_id] = rank
+
     def calculate_layout(self, canvas_height):
         """Calculate device and pin positions for the circuit view."""
-        columns = {0: [], 1: [], 2: []}
-        for device in self.devices.devices_list:
-            columns[self.get_device_column(device)].append(device)
-
-        box_width = 160
-        box_height = 90
-        column_width = 320
-        row_height = 140
+        self.build_graph()
+        self.assign_layers()
+        box_width = self.box_width
+        column_width = self.column_width
+        vertical_gap = 40
         pin_stub = 14
         self.device_positions = {}
         self.input_pin_positions = {}
         self.output_pin_positions = {}
         self.input_wire_positions = {}
         self.output_wire_positions = {}
+        self.feedback_edges = []
+        self.edge_routes = []
+        self.junction_points = []
+        self.gutter_lane_used = {}
+        self.top_bus_used = 0
+        self.bottom_bus_used = 0
 
-        for column, column_devices in columns.items():
-            for row, device in enumerate(column_devices):
-                x_pos = 90 + column * column_width
-                y_pos = canvas_height - 150 - row * row_height
+        self.max_layer = max(
+            (node["layer"] for node in self.layout_nodes.values()), default=0)
+
+        # Size the top and bottom bus bands from how many wires need them.
+        feedback_count = 0
+        multispan_count = 0
+        for edge in self.layout_edges:
+            cs = self.layout_nodes[edge["source_device"]]["layer"]
+            ct = self.layout_nodes[edge["target_device"]]["layer"]
+            if ct <= cs:
+                feedback_count += 1
+            elif ct > cs + 1:
+                multispan_count += 1
+        top_margin = 70 + feedback_count * 22
+        bottom_margin = 45 + multispan_count * 22
+
+        layers = {}
+        for node in self.layout_nodes.values():
+            device = node["device"]
+            pin_count = max(len(device.inputs), len(device.outputs), 1)
+            node["width"] = box_width
+            node["height"] = max(90, 26 * pin_count + 35)
+            layers.setdefault(node["layer"], []).append(node)
+
+        self.order_layers(layers)
+
+        available_height = max(120, canvas_height - top_margin - bottom_margin)
+        min_x = self.layout_origin_x
+        max_x = self.layout_origin_x
+        min_y = canvas_height
+        max_y = 0
+
+        for layer, layer_nodes in sorted(layers.items()):
+            layer_height = sum(node["height"] for node in layer_nodes)
+            layer_height += vertical_gap * max(0, len(layer_nodes) - 1)
+            top_y = canvas_height - top_margin
+            if layer_height < available_height:
+                top_y -= (available_height - layer_height) / 2
+
+            current_y = top_y
+            for node in layer_nodes:
+                device = node["device"]
+                x_pos = self.layout_origin_x + layer * column_width
+                y_pos = current_y - node["height"]
                 self.device_positions[device.device_id] = (
-                    x_pos, y_pos, box_width, box_height)
+                    x_pos, y_pos, node["width"], node["height"])
                 self.store_pin_positions(device, x_pos, y_pos,
-                                         box_width, box_height, pin_stub)
+                                         node["width"], node["height"],
+                                         pin_stub)
+                min_x = min(min_x, x_pos)
+                max_x = max(max_x, x_pos + node["width"])
+                min_y = min(min_y, y_pos)
+                max_y = max(max_y, y_pos + node["height"])
+                current_y = y_pos - vertical_gap
 
-    def get_device_column(self, device):
-        """Return a simple layout column for the device."""
-        if device.device_kind in [self.devices.SWITCH, self.devices.CLOCK]:
-            return 0
-        if device.device_kind in self.devices.gate_types:
-            return 1
-        return 2
+        self.diagram_bounds = (min_x, min_y, max_x, max_y)
+        self.calculate_edge_routes()
+
+    def next_gutter_x(self, gutter):
+        """Return a free vertical lane x inside the given gutter.
+
+        Gutter -1 is the outer-left margin and any gutter at or beyond the
+        last layer is the outer-right margin. Real gutters sit in the empty
+        space between two device columns.
+        """
+        spacing = 22
+        count = self.gutter_lane_used.get(gutter, 0)
+        self.gutter_lane_used[gutter] = count + 1
+        _, _, max_x, _ = self.diagram_bounds
+
+        if gutter <= -1:
+            return self.layout_origin_x - 25 - count * spacing
+        if gutter >= self.max_layer:
+            return max_x + 25 + count * spacing
+
+        left = self.layout_origin_x + gutter * self.column_width \
+            + self.box_width
+        right = self.layout_origin_x + (gutter + 1) * self.column_width
+        return min(left + 25 + count * spacing, right - 12)
+
+    def next_bus_y(self, side):
+        """Return a free horizontal bus lane y above or below the boxes."""
+        spacing = 22
+        _, min_y, _, max_y = self.diagram_bounds
+        if side == "top":
+            count = self.top_bus_used
+            self.top_bus_used += 1
+            return max_y + 22 + count * spacing
+        count = self.bottom_bus_used
+        self.bottom_bus_used += 1
+        return min_y - 22 - count * spacing
+
+    def calculate_edge_routes(self):
+        """Precompute orthogonal wire routes for all graph edges.
+
+        Vertical segments live only in empty gutters between columns, and
+        long horizontals live only in top/bottom bus bands above or below all
+        boxes, so a wire can never cross a device rectangle. Edges sharing a
+        source pin are merged onto one trunk with junction dots.
+        """
+        self.edge_routes = []
+        self.feedback_edges = []
+        self.junction_points = []
+
+        groups = {}
+        order = []
+        for edge in self.layout_edges:
+            source_key = (edge["source_device"], edge["source_port"])
+            if source_key not in groups:
+                groups[source_key] = []
+                order.append(source_key)
+            groups[source_key].append(edge)
+
+        for colour_index, source_key in enumerate(order):
+            source = self.output_wire_positions.get(source_key)
+            if source is None:
+                continue
+            cs = self.layout_nodes[source_key[0]]["layer"]
+
+            adjacent = []
+            forward = []
+            feedback = []
+            for edge in groups[source_key]:
+                target_key = (edge["target_device"], edge["target_port"])
+                target = self.input_wire_positions.get(target_key)
+                if target is None:
+                    continue
+                ct = self.layout_nodes[edge["target_device"]]["layer"]
+                record = (edge, target, ct)
+                if ct <= cs:
+                    feedback.append(record)
+                elif ct == cs + 1:
+                    adjacent.append(record)
+                else:
+                    forward.append(record)
+
+            self.route_adjacent_group(source, cs, adjacent, colour_index)
+            self.route_bus_group(source, cs, forward, colour_index,
+                                 "bottom")
+            self.route_bus_group(source, cs, feedback, colour_index, "top")
+
+    def route_adjacent_group(self, source, cs, records, colour_index):
+        """Route edges to the next column as one trunk in the shared gutter."""
+        if not records:
+            return
+        source_y = source[1]
+        trunk_x = self.next_gutter_x(cs)
+        for edge, target, _ in records:
+            target_y = target[1]
+            points = [
+                source,
+                (trunk_x, source_y),
+                (trunk_x, target_y),
+                target,
+            ]
+            self.edge_routes.append({
+                "points": points,
+                "index": colour_index,
+            })
+            self.junction_points.append((trunk_x, target_y, colour_index))
+        self.junction_points.append((trunk_x, source_y, colour_index))
+
+    def route_bus_group(self, source, cs, records, colour_index, side):
+        """Route edges via a shared riser and a top or bottom bus band."""
+        if not records:
+            return
+        source_y = source[1]
+        rise_x = self.next_gutter_x(cs)
+        bus_y = self.next_bus_y(side)
+        is_feedback = side == "top"
+        for edge, target, ct in records:
+            target_y = target[1]
+            drop_x = self.next_gutter_x(ct - 1)
+            points = [
+                source,
+                (rise_x, source_y),
+                (rise_x, bus_y),
+                (drop_x, bus_y),
+                (drop_x, target_y),
+                target,
+            ]
+            self.edge_routes.append({
+                "points": points,
+                "index": colour_index,
+            })
+            if is_feedback:
+                self.feedback_edges.append(edge)
+            self.junction_points.append((drop_x, bus_y, colour_index))
+        self.junction_points.append((rise_x, bus_y, colour_index))
 
     def store_pin_positions(self, device, x_pos, y_pos, box_width, box_height,
                             pin_stub):
@@ -190,7 +470,8 @@ class CircuitCanvas(wxcanvas.GLCanvas):
                 self.draw_line(wire_x, wire_y, pin_x, pin_y)
                 label = self.get_pin_label(input_id, device)
                 if label:
-                    self.render_text(label, pin_x + 8, pin_y - 4)
+                    label_x = pin_x - 6 - self.text_width(label)
+                    self.render_text(label, label_x, pin_y + 6)
 
             for output_id in device.outputs:
                 pin_x, pin_y = self.output_pin_positions[
@@ -200,53 +481,24 @@ class CircuitCanvas(wxcanvas.GLCanvas):
                 self.draw_line(pin_x, pin_y, wire_x, wire_y)
                 label = self.get_pin_label(output_id, device)
                 if label:
-                    self.render_text(label, pin_x - 36, pin_y - 4)
+                    self.render_text(label, wire_x + 6, pin_y + 6)
 
     def draw_connections(self):
-        """Draw orthogonal lines for all connected inputs."""
-        connections = []
-        for device in self.devices.devices_list:
-            for input_id, connected_output in device.inputs.items():
-                if connected_output is None:
-                    continue
-                output_device_id, output_id = connected_output
-                source = self.output_wire_positions.get((output_device_id,
-                                                         output_id))
-                target = self.input_wire_positions.get((device.device_id,
-                                                        input_id))
-                if source is None or target is None:
-                    continue
-                connections.append((connected_output, source, target))
+        """Draw precomputed orthogonal wire routes and their junction dots."""
+        for route in self.edge_routes:
+            GL.glColor3f(*self.get_wire_colour(route["index"]))
+            points = route["points"]
+            for index in range(len(points) - 1):
+                start_x, start_y = points[index]
+                end_x, end_y = points[index + 1]
+                self.draw_line(start_x, start_y, end_x, end_y)
 
-        source_routes = {}
-        for source_key, source, target in connections:
-            if source_key not in source_routes:
-                source_routes[source_key] = len(source_routes)
-
-            route_index = source_routes[source_key]
-            GL.glColor3f(*self.get_wire_colour(route_index))
-            source_x, source_y = source
-            target_x, target_y = target
-            mid_x = self.get_route_x(source_x, target_x, route_index)
-            self.draw_line(source_x, source_y, mid_x, source_y)
-            self.draw_line(mid_x, source_y, mid_x, target_y)
-            self.draw_line(mid_x, target_y, target_x, target_y)
-
-    def get_route_x(self, source_x, target_x, route_index):
-        """Return a vertical route x-position for a source output."""
-        route_gap = 28
-        first_gap = 35
-        if source_x <= target_x:
-            max_gap = max(20, target_x - source_x - 20)
-            route_gap_x = min(first_gap + route_index * route_gap, max_gap)
-            return source_x + route_gap_x
-
-        max_gap = max(20, source_x - target_x - 20)
-        route_gap_x = min(first_gap + route_index * route_gap, max_gap)
-        return source_x - route_gap_x
+        for x_pos, y_pos, colour_index in self.junction_points:
+            GL.glColor3f(*self.get_wire_colour(colour_index))
+            self.draw_junction(x_pos, y_pos)
 
     def get_wire_colour(self, route_index):
-        """Return a repeatable colour for a wire route."""
+        """Return a stable per-net colour."""
         colours = [
             (0.0, 0.0, 1.0),
             (0.0, 0.55, 0.0),
@@ -254,14 +506,14 @@ class CircuitCanvas(wxcanvas.GLCanvas):
             (0.65, 0.0, 0.75),
             (0.0, 0.55, 0.65),
             (0.9, 0.45, 0.0),
+            (0.4, 0.2, 0.7),
+            (0.6, 0.4, 0.0),
         ]
         return colours[route_index % len(colours)]
 
     def get_pin_label(self, pin_id, device):
         """Return a display label for a pin ID."""
         if pin_id is None:
-            return ""
-        if device.device_kind in self.devices.gate_types:
             return ""
         return self.names.get_name_string(pin_id)
 
@@ -280,6 +532,20 @@ class CircuitCanvas(wxcanvas.GLCanvas):
         GL.glVertex2f(x_start, y_start)
         GL.glVertex2f(x_end, y_end)
         GL.glEnd()
+
+    def draw_junction(self, x_pos, y_pos, radius=3):
+        """Draw a small filled square marking a wire junction."""
+        GL.glBegin(GL.GL_QUADS)
+        GL.glVertex2f(x_pos - radius, y_pos - radius)
+        GL.glVertex2f(x_pos + radius, y_pos - radius)
+        GL.glVertex2f(x_pos + radius, y_pos + radius)
+        GL.glVertex2f(x_pos - radius, y_pos + radius)
+        GL.glEnd()
+
+    def text_width(self, text):
+        """Return the pixel width of text in the label font."""
+        font = GLUT.GLUT_BITMAP_HELVETICA_12
+        return sum(GLUT.glutBitmapWidth(font, ord(c)) for c in str(text))
 
     def render_text(self, text, x_pos, y_pos):
         """Handle text drawing operations."""
