@@ -68,7 +68,7 @@ class Parser:
         self.primitive_ids = [self.names.query(kw) for kw in self.primitive_keywords]
 
         # Macro flattening tracking structures
-        self.custom_types = {}        # {type_name_id: SubCircuitBlueprint}
+        self.custom_types = {}         # {type_name_id: SubCircuitBlueprint}
         self.instantiated_types = {}   # {instance_device_id_or_path_id: type_name_id}
         self.active_import_paths = []  # Dependency stack to catch circular recursion loops
         self.is_blueprint_mode = False # True if parsing an external file asset
@@ -171,6 +171,7 @@ class Parser:
                 self.report_error("ERR_104", f"Block termination mismatch. Missing or malformed '{block_kw_str} END' clause.")
         else:
             self.report_error("ERR_104", f"Block termination mismatch. Missing or malformed '{block_kw_str} END' clause.")
+
     def validate_macro_boundary_references(self, dev_path, port_name, expect_input=True):
         """Scan connection assignments to catch ERR_222 and ERR_217 interface boundary violations.
         Contains Errors[214, 217, 222]"""
