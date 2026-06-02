@@ -153,44 +153,77 @@ class CircuitCanvas(wxcanvas.GLCanvas):
                 })
 
     def assign_layers(self):
-        """Assign readable left-to-right layers for devices."""
+        """Assign readable left-to-right layers via feedback-aware layering.
+
+        Feedback (back) edges are detected and excluded, so the remaining
+        forward edges form a DAG. Devices are then placed by longest path
+        from the inputs, which lets sequential chains (counters, shift
+        registers) flow across columns while true feedback stays a short hop.
+        """
+        adjacency = {node_id: [] for node_id in self.layout_nodes}
+        for edge in self.layout_edges:
+            source = edge["source_device"]
+            target = edge["target_device"]
+            if target not in adjacency[source]:
+                adjacency[source].append(target)
+
+        back_edges = self.find_back_edges(adjacency)
+        forward_pairs = [(u, v) for u, neighbours in adjacency.items()
+                         for v in neighbours if (u, v) not in back_edges]
+
         for node in self.layout_nodes.values():
-            device = node["device"]
-            if device.device_kind in [self.devices.SWITCH, self.devices.CLOCK]:
-                node["layer"] = 0
-            elif device.device_kind == self.devices.D_TYPE:
-                node["layer"] = 2
-            else:
-                node["layer"] = 1
+            node["layer"] = 0
 
         for _ in range(len(self.layout_nodes)):
             changed = False
-            for edge in self.layout_edges:
-                source = self.layout_nodes[edge["source_device"]]
-                target = self.layout_nodes[edge["target_device"]]
-                source_device = source["device"]
-                target_device = target["device"]
-
-                if target_device.device_kind == self.devices.D_TYPE:
-                    continue
-                if source_device.device_kind == self.devices.D_TYPE:
-                    continue
-
-                wanted_layer = source["layer"] + 1
-                if wanted_layer > target["layer"]:
-                    target["layer"] = wanted_layer
+            for source, target in forward_pairs:
+                wanted_layer = self.layout_nodes[source]["layer"] + 1
+                if wanted_layer > self.layout_nodes[target]["layer"]:
+                    self.layout_nodes[target]["layer"] = wanted_layer
                     changed = True
             if not changed:
                 break
 
-        highest_logic_layer = 1
-        for node in self.layout_nodes.values():
-            if node["device"].device_kind != self.devices.D_TYPE:
-                highest_logic_layer = max(highest_logic_layer, node["layer"])
+        self.collapse_layers()
 
+    def find_back_edges(self, adjacency):
+        """Return the set of (source, target) edges that close a cycle.
+
+        Uses an iterative depth-first search with white/grey/black colouring;
+        an edge into a node still on the recursion stack (grey) is a back edge.
+        """
+        white, grey, black = 0, 1, 2
+        colour = {node_id: white for node_id in self.layout_nodes}
+        back_edges = set()
+
+        for start in self.layout_nodes:
+            if colour[start] != white:
+                continue
+            colour[start] = grey
+            stack = [(start, iter(adjacency[start]))]
+            while stack:
+                node, neighbours = stack[-1]
+                descended = False
+                for neighbour in neighbours:
+                    if colour[neighbour] == grey:
+                        back_edges.add((node, neighbour))
+                    elif colour[neighbour] == white:
+                        colour[neighbour] = grey
+                        stack.append((neighbour, iter(adjacency[neighbour])))
+                        descended = True
+                        break
+                if not descended:
+                    colour[node] = black
+                    stack.pop()
+
+        return back_edges
+
+    def collapse_layers(self):
+        """Renumber the used layers to contiguous integers (no empty columns)."""
+        used = sorted({node["layer"] for node in self.layout_nodes.values()})
+        remap = {layer: index for index, layer in enumerate(used)}
         for node in self.layout_nodes.values():
-            if node["device"].device_kind == self.devices.D_TYPE:
-                node["layer"] = highest_logic_layer + 1
+            node["layer"] = remap[node["layer"]]
 
     def order_layers(self, layers):
         """Order nodes within each layer to reduce wire crossings.
@@ -199,9 +232,15 @@ class CircuitCanvas(wxcanvas.GLCanvas):
         rank of the devices that feed it in earlier layers.
         """
         predecessors = {}
+        successors = {}
         for edge in self.layout_edges:
             predecessors.setdefault(edge["target_device"], []).append(
                 edge["source_device"])
+            successors.setdefault(edge["source_device"], []).append(
+                edge["target_device"])
+
+        order_index = {node_id: node["order"]
+                       for node_id, node in self.layout_nodes.items()}
 
         ranks = {}
         for layer in sorted(layers):
@@ -210,10 +249,18 @@ class CircuitCanvas(wxcanvas.GLCanvas):
                 layer_nodes.sort(key=lambda item: item["order"])
             else:
                 def barycenter(node):
-                    sources = predecessors.get(node["device"].device_id, [])
-                    source_ranks = [ranks[s] for s in sources if s in ranks]
+                    device_id = node["device"].device_id
+                    source_ranks = [ranks[s]
+                                    for s in predecessors.get(device_id, [])
+                                    if s in ranks]
                     if source_ranks:
                         return sum(source_ranks) / len(source_ranks)
+                    # No ranked inputs: hint from where this node feeds.
+                    target_orders = [order_index[t]
+                                     for t in successors.get(device_id, [])
+                                     if t in order_index]
+                    if target_orders:
+                        return sum(target_orders) / len(target_orders)
                     return node["order"]
                 layer_nodes.sort(key=barycenter)
             for rank, node in enumerate(layer_nodes):
@@ -271,14 +318,19 @@ class CircuitCanvas(wxcanvas.GLCanvas):
         min_y = canvas_height
         max_y = 0
 
-        for layer, layer_nodes in sorted(layers.items()):
+        # Align every column to one shared top edge so columns line up and the
+        # whole block is centred by the tallest column.
+        tallest = 0
+        for layer_nodes in layers.values():
             layer_height = sum(node["height"] for node in layer_nodes)
             layer_height += vertical_gap * max(0, len(layer_nodes) - 1)
-            top_y = canvas_height - top_margin
-            if layer_height < available_height:
-                top_y -= (available_height - layer_height) / 2
+            tallest = max(tallest, layer_height)
+        shared_top_y = canvas_height - top_margin
+        if tallest < available_height:
+            shared_top_y -= (available_height - tallest) / 2
 
-            current_y = top_y
+        for layer, layer_nodes in sorted(layers.items()):
+            current_y = shared_top_y
             for node in layer_nodes:
                 device = node["device"]
                 x_pos = self.layout_origin_x + layer * column_width

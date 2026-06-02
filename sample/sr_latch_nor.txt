@@ -1,0 +1,25 @@
+# sr_latch_nor.txt
+# A classic cross-coupled NOR SR latch.
+# Drive S or R high to set or reset the stored bit.
+
+DEVICES:
+    S = SWITCH 0;
+    R = SWITCH 0;
+    Q = NOR 2;
+    Qbar = NOR 2;
+DEVICES END;
+
+CONNECT:
+    R = Q.I1;
+    Qbar = Q.I2;
+
+    S = Qbar.I1;
+    Q = Qbar.I2;
+CONNECT END;
+
+MONITOR:
+    Q;
+    Qbar;
+MONITOR END;
+
+END
