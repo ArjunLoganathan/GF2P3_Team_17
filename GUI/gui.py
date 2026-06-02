@@ -44,9 +44,8 @@ class Gui(wx.Frame):
         self.network = network
         self.monitors = monitors
         self.cycles_completed = 0
-        self.switch_choices = {}
-        self.monitor_choices = {}
-        self.available_monitor_choices = {}
+        self.switch_buttons = {}
+        self.monitor_buttons = {}
 
         # Configure the file menu
         file_menu = wx.Menu()
@@ -72,28 +71,26 @@ class Gui(wx.Frame):
                                             "Completed cycles: 0")
         self.run_button = wx.Button(self, wx.ID_ANY, "Run")
         self.continue_button = wx.Button(self, wx.ID_ANY, "Continue")
-        self.switch_text = wx.StaticText(self, wx.ID_ANY, "Switch")
-        self.switch_choice = wx.Choice(self, wx.ID_ANY)
-        self.switch_state = wx.Choice(self, wx.ID_ANY, choices=["0", "1"])
-        self.switch_state.SetSelection(0)
-        self.set_switch_button = wx.Button(self, wx.ID_ANY, "Set Switch")
-        self.add_monitor_text = wx.StaticText(self, wx.ID_ANY, "Add Monitor")
-        self.add_monitor_choice = wx.Choice(self, wx.ID_ANY)
-        self.add_monitor_button = wx.Button(self, wx.ID_ANY, "Add")
-        self.remove_monitor_text = wx.StaticText(self, wx.ID_ANY,
-                                                "Remove Monitor")
-        self.remove_monitor_choice = wx.Choice(self, wx.ID_ANY)
-        self.remove_monitor_button = wx.Button(self, wx.ID_ANY, "Remove")
+        self.switch_text = wx.StaticText(self, wx.ID_ANY, "Switches")
+        self.switch_panel = wx.ScrolledWindow(self, wx.ID_ANY,
+                                              style=wx.VSCROLL | wx.BORDER_SIMPLE)
+        self.switch_panel.SetScrollRate(0, 10)
+        self.switch_panel.SetMinSize((-1, 160))
+        self.switch_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.switch_panel.SetSizer(self.switch_sizer)
+        self.monitor_text = wx.StaticText(self, wx.ID_ANY, "Monitors")
+        self.monitor_panel = wx.ScrolledWindow(self, wx.ID_ANY,
+                                               style=wx.VSCROLL | wx.BORDER_SIMPLE)
+        self.monitor_panel.SetScrollRate(0, 10)
+        self.monitor_panel.SetMinSize((-1, 160))
+        self.monitor_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.monitor_panel.SetSizer(self.monitor_sizer)
         self.status = wx.StaticText(self, wx.ID_ANY, "Ready.")
 
         # Bind events to widgets
         self.Bind(wx.EVT_MENU, self.on_menu)
         self.run_button.Bind(wx.EVT_BUTTON, self.on_run_button)
         self.continue_button.Bind(wx.EVT_BUTTON, self.on_continue_button)
-        self.set_switch_button.Bind(wx.EVT_BUTTON, self.on_set_switch_button)
-        self.add_monitor_button.Bind(wx.EVT_BUTTON, self.on_add_monitor_button)
-        self.remove_monitor_button.Bind(wx.EVT_BUTTON,
-                                        self.on_remove_monitor_button)
 
         # Configure sizers for layout
         main_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -110,16 +107,10 @@ class Gui(wx.Frame):
         side_sizer.Add(self.continue_button, 0, wx.ALL | wx.EXPAND, 5)
         side_sizer.AddSpacer(15)
         side_sizer.Add(self.switch_text, 0, wx.ALL, 5)
-        side_sizer.Add(self.switch_choice, 0, wx.ALL | wx.EXPAND, 5)
-        side_sizer.Add(self.switch_state, 0, wx.ALL | wx.EXPAND, 5)
-        side_sizer.Add(self.set_switch_button, 0, wx.ALL | wx.EXPAND, 5)
+        side_sizer.Add(self.switch_panel, 1, wx.ALL | wx.EXPAND, 5)
         side_sizer.AddSpacer(15)
-        side_sizer.Add(self.add_monitor_text, 0, wx.ALL, 5)
-        side_sizer.Add(self.add_monitor_choice, 0, wx.ALL | wx.EXPAND, 5)
-        side_sizer.Add(self.add_monitor_button, 0, wx.ALL | wx.EXPAND, 5)
-        side_sizer.Add(self.remove_monitor_text, 0, wx.ALL, 5)
-        side_sizer.Add(self.remove_monitor_choice, 0, wx.ALL | wx.EXPAND, 5)
-        side_sizer.Add(self.remove_monitor_button, 0, wx.ALL | wx.EXPAND, 5)
+        side_sizer.Add(self.monitor_text, 0, wx.ALL, 5)
+        side_sizer.Add(self.monitor_panel, 1, wx.ALL | wx.EXPAND, 5)
         side_sizer.AddSpacer(15)
         side_sizer.Add(self.status, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -137,8 +128,8 @@ class Gui(wx.Frame):
         if menu_id == wx.ID_HELP:
             wx.MessageBox("Run: start from cycle 0 with cleared traces.\n"
                           "Continue: add more cycles to the current run.\n"
-                          "Set Switch: choose a switch and set it to 0 or 1.\n"
-                          "Add/Remove Monitor: choose which outputs to show.",
+                          "Switches: click a switch's toggle to flip it 0/1.\n"
+                          "Monitors: toggle each output On/Off to show it.",
                           "Logsim Help", wx.ICON_INFORMATION | wx.OK)
         if menu_id == wx.ID_ABOUT:
             wx.MessageBox("Logic Simulator\nGraphical user interface",
@@ -168,47 +159,47 @@ class Gui(wx.Frame):
                              " cycles. Total: " +
                              str(self.cycles_completed) + ".")
 
-    def on_set_switch_button(self, event):
-        """Handle the event when the user sets a switch."""
-        switch_name = self.switch_choice.GetStringSelection()
-        if not switch_name:
-            self.show_status("No switch selected.")
-            return
-        switch_id = self.switch_choices[switch_name]
-        switch_state = int(self.switch_state.GetStringSelection())
+    def on_toggle_switch(self, event):
+        """Handle a switch toggle, applying the new state immediately."""
+        toggle = event.GetEventObject()
+        switch_id = self.switch_buttons[toggle]
+        switch_name = self.names.get_name_string(switch_id)
+        switch_state = 1 if toggle.GetValue() else 0
         if self.devices.set_switch(switch_id, switch_state):
+            self.style_switch_toggle(toggle, switch_state)
             self.show_status("Set " + switch_name + " to " +
                              str(switch_state) + ".")
         else:
+            toggle.SetValue(switch_state == 0)
+            self.style_switch_toggle(toggle, 1 - switch_state)
             self.show_status("Could not set switch " + switch_name + ".")
 
-    def on_add_monitor_button(self, event):
-        """Handle the event when the user adds a monitor."""
-        monitor_name = self.add_monitor_choice.GetStringSelection()
-        if not monitor_name:
-            self.show_status("No available monitor selected.")
-            return
-        device_id, output_id = self.available_monitor_choices[monitor_name]
-        error_type = self.monitors.make_monitor(device_id, output_id,
-                                                self.cycles_completed)
-        if error_type == self.monitors.NO_ERROR:
-            self.update_controls()
-            self.show_status("Added monitor " + monitor_name + ".")
-        else:
-            self.show_status("Could not add monitor " + monitor_name + ".")
+    def style_switch_toggle(self, toggle, state):
+        """Update a switch toggle's label to show its 0/1 state."""
+        toggle.SetLabel(str(state))
 
-    def on_remove_monitor_button(self, event):
-        """Handle the event when the user removes a monitor."""
-        monitor_name = self.remove_monitor_choice.GetStringSelection()
-        if not monitor_name:
-            self.show_status("No monitor selected.")
-            return
-        device_id, output_id = self.monitor_choices[monitor_name]
-        if self.monitors.remove_monitor(device_id, output_id):
-            self.update_controls()
-            self.show_status("Removed monitor " + monitor_name + ".")
+    def on_toggle_monitor(self, event):
+        """Handle a monitor toggle, adding or removing it immediately."""
+        toggle = event.GetEventObject()
+        device_id, output_id = self.monitor_buttons[toggle]
+        monitor_name = self.devices.get_signal_name(device_id, output_id)
+        if toggle.GetValue():
+            error_type = self.monitors.make_monitor(device_id, output_id,
+                                                    self.cycles_completed)
+            if error_type == self.monitors.NO_ERROR:
+                toggle.SetLabel("On")
+                self.show_status("Added monitor " + monitor_name + ".")
+            else:
+                toggle.SetValue(False)
+                self.show_status("Could not add monitor " + monitor_name + ".")
         else:
-            self.show_status("Could not remove monitor " + monitor_name + ".")
+            if self.monitors.remove_monitor(device_id, output_id):
+                toggle.SetLabel("Off")
+                self.show_status("Removed monitor " + monitor_name + ".")
+            else:
+                toggle.SetValue(True)
+                self.show_status("Could not remove monitor " +
+                                 monitor_name + ".")
 
     def run_network(self, cycles):
         """Run the network for the specified number of cycles."""
@@ -228,63 +219,54 @@ class Gui(wx.Frame):
         self.update_cycle_text()
 
     def update_switch_choices(self):
-        """Refresh the switch selector."""
-        self.switch_choices = {}
-        switch_names = []
+        """Rebuild one toggle button per switch, reflecting its current state."""
+        self.switch_sizer.Clear(delete_windows=True)
+        self.switch_buttons = {}
         for switch_id in self.devices.find_devices(self.devices.SWITCH):
             switch_name = self.names.get_name_string(switch_id)
-            if switch_name is not None:
-                switch_names.append(switch_name)
-                self.switch_choices[switch_name] = switch_id
-        self.set_choice_items(self.switch_choice, switch_names)
+            if switch_name is None:
+                continue
+            state = self.devices.get_device(switch_id).switch_state
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            label = wx.StaticText(self.switch_panel, wx.ID_ANY, switch_name)
+            toggle = wx.ToggleButton(self.switch_panel, wx.ID_ANY,
+                                     str(state), size=(40, -1))
+            toggle.SetValue(state == 1)
+            toggle.Bind(wx.EVT_TOGGLEBUTTON, self.on_toggle_switch)
+            self.switch_buttons[toggle] = switch_id
+            row.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
+            row.Add(toggle, 0, wx.ALL, 2)
+            self.switch_sizer.Add(row, 0, wx.EXPAND)
+        self.switch_panel.Layout()
+        self.switch_panel.FitInside()
 
     def update_monitor_choices(self):
-        """Refresh the monitor selectors."""
-        self.monitor_choices = {}
-        self.available_monitor_choices = {}
-        monitored_names = []
-        available_names = []
-
-        for device_id, output_id in self.monitors.monitors_dictionary:
-            name = self.devices.get_signal_name(device_id, output_id)
-            monitored_names.append(name)
-            self.monitor_choices[name] = (device_id, output_id)
-
+        """Rebuild one toggle per output, reflecting whether it is monitored."""
+        self.monitor_sizer.Clear(delete_windows=True)
+        self.monitor_buttons = {}
         for device_id in self.devices.find_devices():
             device = self.devices.get_device(device_id)
             for output_id in device.outputs:
-                if (device_id, output_id) not in self.monitors.monitors_dictionary:
-                    name = self.devices.get_signal_name(device_id, output_id)
-                    available_names.append(name)
-                    self.available_monitor_choices[name] = (device_id,
-                                                            output_id)
-
-        self.set_choice_items(self.remove_monitor_choice, monitored_names)
-        self.set_choice_items(self.add_monitor_choice, available_names)
-
-    def set_choice_items(self, choice, items):
-        """Refresh a choice control while preserving its selection."""
-        previous_selection = choice.GetStringSelection()
-        choice.Set(items)
-        if previous_selection in items:
-            choice.SetStringSelection(previous_selection)
-        elif items:
-            choice.SetSelection(0)
+                name = self.devices.get_signal_name(device_id, output_id)
+                monitored = (device_id, output_id) in \
+                    self.monitors.monitors_dictionary
+                row = wx.BoxSizer(wx.HORIZONTAL)
+                label = wx.StaticText(self.monitor_panel, wx.ID_ANY, name)
+                toggle = wx.ToggleButton(self.monitor_panel, wx.ID_ANY,
+                                         "On" if monitored else "Off",
+                                         size=(50, -1))
+                toggle.SetValue(monitored)
+                toggle.Bind(wx.EVT_TOGGLEBUTTON, self.on_toggle_monitor)
+                self.monitor_buttons[toggle] = (device_id, output_id)
+                row.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
+                row.Add(toggle, 0, wx.ALL, 2)
+                self.monitor_sizer.Add(row, 0, wx.EXPAND)
+        self.monitor_panel.Layout()
+        self.monitor_panel.FitInside()
 
     def update_button_states(self):
         """Enable controls only when the related action is available."""
-        has_switches = bool(self.switch_choices)
-        has_monitors = bool(self.monitor_choices)
-        has_available_monitors = bool(self.available_monitor_choices)
-
         self.continue_button.Enable(self.cycles_completed > 0)
-        self.switch_choice.Enable(has_switches)
-        self.switch_state.Enable(has_switches)
-        self.set_switch_button.Enable(has_switches)
-        self.add_monitor_choice.Enable(has_available_monitors)
-        self.add_monitor_button.Enable(has_available_monitors)
-        self.remove_monitor_choice.Enable(has_monitors)
-        self.remove_monitor_button.Enable(has_monitors)
 
     def update_cycle_text(self):
         """Display the number of completed simulation cycles."""
