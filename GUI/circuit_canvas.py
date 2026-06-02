@@ -2,6 +2,7 @@
 import wx
 import wx.glcanvas as wxcanvas
 from OpenGL import GL, GLUT
+from OpenGL.arrays import vbo
 
 
 class CircuitCanvas(wxcanvas.GLCanvas):
