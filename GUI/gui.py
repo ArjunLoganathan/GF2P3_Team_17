@@ -7,9 +7,47 @@ Classes:
 --------
 Gui - configures the main window and all the widgets.
 """
+import io
+from contextlib import redirect_stdout
+
 import wx
+
+from names import Names
+from devices import Devices
+from network import Network
+from monitors import Monitors
+from scanner import Scanner
+from parse import Parser
 from GUI.circuit_canvas import CircuitCanvas
 from GUI.waveform_canvas import MyGLCanvas
+
+
+def empty_model():
+    """Build a fresh, empty simulator model."""
+    names = Names()
+    devices = Devices(names)
+    network = Network(names, devices)
+    monitors = Monitors(names, devices, network)
+    return names, devices, network, monitors
+
+
+def compile_source(text):
+    """Build a model from source text, capturing any parser error output.
+
+    Return a tuple (ok, model, output) where model is the four-tuple of
+    simulator objects on success or None on failure, and output is the
+    captured parser messages.
+    """
+    names, devices, network, monitors = empty_model()
+    buffer = io.StringIO()
+    try:
+        scanner = Scanner(None, names, source_text=text)
+        parser = Parser(names, devices, network, monitors, scanner)
+        with redirect_stdout(buffer):
+            ok = parser.parse_network()
+    except Exception as exc:
+        return False, None, buffer.getvalue() + "\n" + str(exc)
+    return ok, (names, devices, network, monitors), buffer.getvalue()
 
 
 class Gui(wx.Frame):
@@ -35,14 +73,11 @@ class Gui(wx.Frame):
     on_text_box(self, event): Event handler for when the user enters text.
     """
 
-    def __init__(self, title, path, names, devices, network, monitors):
-        """Initialise widgets and layout."""
+    def __init__(self, title, path, source_text=""):
+        """Initialise widgets and layout, then compile the initial source."""
         super().__init__(parent=None, title=title, size=(1000, 650))
         self.path = path
-        self.names = names
-        self.devices = devices
-        self.network = network
-        self.monitors = monitors
+        self.names, self.devices, self.network, self.monitors = empty_model()
         self.cycles_completed = 0
         self.switch_buttons = {}
         self.monitor_buttons = {}
@@ -58,13 +93,17 @@ class Gui(wx.Frame):
 
         # Canvas tabs for drawing signals and the circuit structure
         self.notebook = wx.Notebook(self)
-        self.canvas = MyGLCanvas(self.notebook, devices, monitors)
-        self.circuit_canvas = CircuitCanvas(self.notebook, names, devices)
+        self.canvas = MyGLCanvas(self.notebook, self.devices, self.monitors)
+        self.circuit_canvas = CircuitCanvas(self.notebook, self.names,
+                                            self.devices)
+        self.compiler_panel = self.build_compiler_panel(self.notebook)
         self.notebook.AddPage(self.canvas, "Waveforms")
         self.notebook.AddPage(self.circuit_canvas, "Circuit")
+        self.notebook.AddPage(self.compiler_panel, "Compiler")
 
         # Configure the widgets
-        self.file_text = wx.StaticText(self, wx.ID_ANY, "File: " + path)
+        self.file_text = wx.StaticText(self, wx.ID_ANY,
+                                       "File: " + (path or "(none)"))
         self.cycle_text = wx.StaticText(self, wx.ID_ANY, "Cycles")
         self.spin = wx.SpinCtrl(self, wx.ID_ANY, "10", min=0, max=100000)
         self.completed_text = wx.StaticText(self, wx.ID_ANY,
@@ -116,9 +155,13 @@ class Gui(wx.Frame):
 
         self.SetSizeHints(600, 600)
         self.SetSizer(main_sizer)
+        self.editor.SetValue(source_text)
         self.update_controls()
-        wx.CallAfter(self.canvas.render, "Ready.")
-        wx.CallAfter(self.circuit_canvas.render)
+        if source_text.strip():
+            self.on_compile()
+        else:
+            wx.CallAfter(self.canvas.render, "Ready.")
+            wx.CallAfter(self.circuit_canvas.render)
 
     def on_menu(self, event):
         """Handle the event when the user selects a menu item."""
@@ -134,6 +177,60 @@ class Gui(wx.Frame):
         if menu_id == wx.ID_ABOUT:
             wx.MessageBox("Logic Simulator\nGraphical user interface",
                           "About Logsim", wx.ICON_INFORMATION | wx.OK)
+
+    def build_compiler_panel(self, parent):
+        """Build the Compiler tab: an editor, a Compile button, and results."""
+        panel = wx.Panel(parent)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        code_font = wx.Font(10, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL,
+                            wx.FONTWEIGHT_NORMAL)
+
+        self.editor = wx.TextCtrl(panel, wx.ID_ANY,
+                                  style=wx.TE_MULTILINE | wx.HSCROLL)
+        self.editor.SetFont(code_font)
+        self.compile_button = wx.Button(panel, wx.ID_ANY, "Compile")
+        self.compile_button.Bind(wx.EVT_BUTTON, self.on_compile)
+        self.compiler_output = wx.TextCtrl(
+            panel, wx.ID_ANY,
+            style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
+        self.compiler_output.SetFont(code_font)
+
+        sizer.Add(wx.StaticText(panel, wx.ID_ANY, "Circuit definition:"),
+                  0, wx.ALL, 5)
+        sizer.Add(self.editor, 3, wx.EXPAND | wx.ALL, 5)
+        sizer.Add(self.compile_button, 0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(panel, wx.ID_ANY, "Result:"), 0, wx.ALL, 5)
+        sizer.Add(self.compiler_output, 1, wx.EXPAND | wx.ALL, 5)
+        panel.SetSizer(sizer)
+        return panel
+
+    def on_compile(self, event=None):
+        """Compile the editor text and refresh everything on success."""
+        ok, model, output = compile_source(self.editor.GetValue())
+        if ok and model is not None:
+            self.load_model(model)
+            message = "Compilation successful."
+            if output.strip():
+                message += "\n\n" + output
+            self.compiler_output.SetValue(message)
+            self.show_status("Compilation successful.")
+        else:
+            self.compiler_output.SetValue(
+                output.strip() or "Compilation failed.")
+            self.show_status("Compilation failed. See the Compiler tab.")
+
+    def load_model(self, model):
+        """Point the GUI and canvases at a freshly compiled model."""
+        self.names, self.devices, self.network, self.monitors = model
+        self.canvas.devices = self.devices
+        self.canvas.monitors = self.monitors
+        self.circuit_canvas.names = self.names
+        self.circuit_canvas.devices = self.devices
+        self.cycles_completed = 0
+        self.update_controls()
+        self.circuit_canvas.init = False
+        wx.CallAfter(self.canvas.render, "Ready.")
+        wx.CallAfter(self.circuit_canvas.render)
 
     def on_run_button(self, event):
         """Handle the event when the user clicks the run button."""

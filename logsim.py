@@ -62,21 +62,27 @@ def main(arg_list):
 
     if not options:  # no option given, use the graphical user interface
 
-        if len(arguments) != 1:  # wrong number of arguments
-            print("Error: one file path required\n")
+        if len(arguments) > 1:  # too many arguments
+            print("Error: at most one file path is allowed\n")
             print(usage_message)
             sys.exit()
 
-        [path] = arguments
-        scanner = Scanner(path, names)
-        parser = Parser(names, devices, network, monitors, scanner)
-        if parser.parse_network():
-            # Initialise an instance of the gui.Gui() class
-            app = wx.App()
-            gui = Gui("Logic Simulator", path, names, devices, network,
-                      monitors)
-            gui.Show(True)
-            app.MainLoop()
+        path = arguments[0] if arguments else ""
+        source_text = ""
+        if path:
+            try:
+                with open(path, "r") as definition_file:
+                    source_text = definition_file.read()
+            except (OSError, IOError):
+                print("Error: could not open file " + path + "\n")
+                print(usage_message)
+                sys.exit()
+
+        # Launch the GUI; compilation happens inside, with errors shown there.
+        app = wx.App()
+        gui = Gui("Logic Simulator", path, source_text)
+        gui.Show(True)
+        app.MainLoop()
 
 
 if __name__ == "__main__":
