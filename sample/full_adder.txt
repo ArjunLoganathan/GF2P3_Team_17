@@ -1,0 +1,40 @@
+# full_adder.txt
+# A 1-bit full adder built from XOR, AND and OR gates.
+# Sum  = A XOR B XOR Cin
+# Cout = (A AND B) OR (Cin AND (A XOR B))
+
+DEVICES:
+    A = SWITCH 0;
+    B = SWITCH 0;
+    Cin = SWITCH 0;
+
+    AxorB = XOR;        # A XOR B
+    Sum = XOR;          # (A XOR B) XOR Cin
+    AndAB = AND 2;      # A AND B
+    AndCin = AND 2;     # Cin AND (A XOR B)
+    Cout = OR 2;        # carry out
+DEVICES END;
+
+CONNECT:
+    A = AxorB.I1;
+    B = AxorB.I2;
+
+    AxorB = Sum.I1;
+    Cin = Sum.I2;
+
+    A = AndAB.I1;
+    B = AndAB.I2;
+
+    AxorB = AndCin.I1;
+    Cin = AndCin.I2;
+
+    AndAB = Cout.I1;
+    AndCin = Cout.I2;
+CONNECT END;
+
+MONITOR:
+    Sum;
+    Cout;
+MONITOR END;
+
+END

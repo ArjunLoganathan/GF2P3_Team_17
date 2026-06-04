@@ -52,11 +52,12 @@ class Scanner:
                       and returns the symbol.
     """
 
-    def __init__(self, path, names):
+    def __init__(self, path, names, source_text=None):
         """Open specified file and initialise reserved words and IDs.
         Need to write more tests and error correction codes"""
         self.path = path
         self.names = names
+        self.source_text = source_text
         # self.current_symbol = None
         self.current_line = 1
         # self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE INPUT_PORTS OUTPUT_PORTS".split(" ")
@@ -91,7 +92,9 @@ class Scanner:
             raise Exception("Error finding current line when doing error ting - thign should never call idk why its hers")
 
     def read_file(self):
-        """Open, read, and return the entire text of the file."""
+        """Return the source text, reading from the file if not supplied."""
+        if self.source_text is not None:
+            return self.source_text
         try:
             with open(self.path, "r") as file:
                 return file.read()

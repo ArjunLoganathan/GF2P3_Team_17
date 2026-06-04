@@ -1,0 +1,47 @@
+# shift_register_4bit.txt
+# A 4-bit serial-in shift register. On every clock edge the serial input
+# Din advances one stage along the chain Q0 -> Q1 -> Q2 -> Q3.
+
+DEVICES:
+    Clk = CLOCK 1;
+    Gnd = SWITCH 0;
+    Din = SWITCH 1;
+
+    Q0 = DTYPE;
+    Q1 = DTYPE;
+    Q2 = DTYPE;
+    Q3 = DTYPE;
+DEVICES END;
+
+CONNECT:
+    # Data path: serial input feeds the first stage, each Q feeds the next.
+    Din = Q0.DATA;
+    Q0.Q = Q1.DATA;
+    Q1.Q = Q2.DATA;
+    Q2.Q = Q3.DATA;
+
+    # Shared clock for synchronous shifting.
+    Clk = Q0.CLK;
+    Clk = Q1.CLK;
+    Clk = Q2.CLK;
+    Clk = Q3.CLK;
+
+    # Tie all asynchronous SET/CLEAR inputs low.
+    Gnd = Q0.SET;
+    Gnd = Q0.CLEAR;
+    Gnd = Q1.SET;
+    Gnd = Q1.CLEAR;
+    Gnd = Q2.SET;
+    Gnd = Q2.CLEAR;
+    Gnd = Q3.SET;
+    Gnd = Q3.CLEAR;
+CONNECT END;
+
+MONITOR:
+    Q0.Q;
+    Q1.Q;
+    Q2.Q;
+    Q3.Q;
+MONITOR END;
+
+END
