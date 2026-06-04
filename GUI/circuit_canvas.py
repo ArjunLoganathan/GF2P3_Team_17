@@ -3,6 +3,8 @@ import wx
 import wx.glcanvas as wxcanvas
 from OpenGL import GL, GLUT
 from OpenGL.arrays import vbo
+import numpy as np
+from OpenGL import GL
 
 
 class CircuitCanvas(wxcanvas.GLCanvas):
@@ -536,22 +538,54 @@ class CircuitCanvas(wxcanvas.GLCanvas):
                 if label:
                     self.render_text(label, wire_x + 6, pin_y + 6)
 
+    # def draw_connections(self):
+    #     """Draw precomputed orthogonal wire routes and their junction dots."""
+    #     for route in self.edge_routes:
+    #         GL.glColor3f(*self.get_wire_colour(route["index"]))
+    #         points = route["points"]
+    #         for index in range(len(points) - 1):
+    #             start_x, start_y = points[index]
+    #             end_x, end_y = points[index + 1]
+    #             self.draw_line(start_x, start_y, end_x, end_y)
+
+    #     for x_pos, y_pos, colour_index in self.junction_points:
+    #         GL.glColor3f(*self.get_wire_colour(colour_index))
+    #         self.draw_junction(x_pos, y_pos)
+
     def draw_connections(self):
-        """Draw precomputed orthogonal wire routes and their junction dots."""
+        """Draw all precomputed orthogonal wire routes in a single batched call."""
+        all_vertices = []
+        all_colors = []
+
         for route in self.edge_routes:
-            GL.glColor3f(*self.get_wire_colour(route["index"]))
+            color = self.get_wire_colour(route["index"])
             points = route["points"]
             for index in range(len(points) - 1):
-                start_x, start_y = points[index]
-                end_x, end_y = points[index + 1]
-                self.draw_line(start_x, start_y, end_x, end_y)
+                all_vertices.extend([points[index], points[index + 1]])
+                all_colors.extend([color, color])
+
+        if not all_vertices:
+            return
+
+        vertex_data = np.array(all_vertices, dtype=np.float32)
+        color_data = np.array(all_colors, dtype=np.float32)
+
+        GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
+        GL.glEnableClientState(GL.GL_COLOR_ARRAY)
+
+        GL.glVertexPointer(2, GL.GL_FLOAT, 0, vertex_data)
+        GL.glColorPointer(3, GL.GL_FLOAT, 0, color_data)
+
+        GL.glDrawArrays(GL.GL_LINES, 0, len(vertex_data))
+
+        GL.glDisableClientState(GL.GL_COLOR_ARRAY)
+        GL.glDisableClientState(GL.GL_VERTEX_ARRAY)
 
         for x_pos, y_pos, colour_index in self.junction_points:
             GL.glColor3f(*self.get_wire_colour(colour_index))
             self.draw_junction(x_pos, y_pos)
 
     def get_wire_colour(self, route_index):
-        """Return a stable per-net colour."""
         colours = [
             (0.0, 0.0, 1.0),
             (0.0, 0.55, 0.0),
@@ -570,30 +604,69 @@ class CircuitCanvas(wxcanvas.GLCanvas):
             return ""
         return self.names.get_name_string(pin_id)
 
+    # def draw_rectangle(self, x_pos, y_pos, width, height):
+    #     """Draw a rectangle outline."""
+    #     GL.glBegin(GL.GL_LINE_LOOP)
+    #     GL.glVertex2f(x_pos, y_pos)
+    #     GL.glVertex2f(x_pos + width, y_pos)
+    #     GL.glVertex2f(x_pos + width, y_pos + height)
+    #     GL.glVertex2f(x_pos, y_pos + height)
+    #     GL.glEnd()
+
     def draw_rectangle(self, x_pos, y_pos, width, height):
-        """Draw a rectangle outline."""
-        GL.glBegin(GL.GL_LINE_LOOP)
-        GL.glVertex2f(x_pos, y_pos)
-        GL.glVertex2f(x_pos + width, y_pos)
-        GL.glVertex2f(x_pos + width, y_pos + height)
-        GL.glVertex2f(x_pos, y_pos + height)
-        GL.glEnd()
+        """Draw a rectangle outline using Vertex Arrays."""
+        vertices = np.array([
+            [x_pos, y_pos],
+            [x_pos + width, y_pos],
+            [x_pos + width, y_pos + height],
+            [x_pos, y_pos + height]
+        ], dtype=np.float32)
+        GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
+        GL.glVertexPointer(2, GL.GL_FLOAT, 0, vertices)
+        GL.glDrawArrays(GL.GL_LINE_LOOP, 0, 4)
+        GL.glDisableClientState(GL.GL_VERTEX_ARRAY)
+
+    # def draw_line(self, x_start, y_start, x_end, y_end):
+    #     """Draw a single straight line."""
+    #     GL.glBegin(GL.GL_LINES)
+    #     GL.glVertex2f(x_start, y_start)
+    #     GL.glVertex2f(x_end, y_end)
+    #     GL.glEnd()
 
     def draw_line(self, x_start, y_start, x_end, y_end):
-        """Draw a single straight line."""
-        GL.glBegin(GL.GL_LINES)
-        GL.glVertex2f(x_start, y_start)
-        GL.glVertex2f(x_end, y_end)
-        GL.glEnd()
+        """Draw a single straight line using Vertex Arrays."""
+        vertices = np.array([
+            [x_start, y_start],
+            [x_end, y_end]
+        ], dtype=np.float32)
+
+        GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
+        GL.glVertexPointer(2, GL.GL_FLOAT, 0, vertices)
+        GL.glDrawArrays(GL.GL_LINES, 0, 2)
+        GL.glDisableClientState(GL.GL_VERTEX_ARRAY)
+
+    # def draw_junction(self, x_pos, y_pos, radius=3):
+    #     """Draw a small filled square marking a wire junction."""
+    #     GL.glBegin(GL.GL_QUADS)
+    #     GL.glVertex2f(x_pos - radius, y_pos - radius)
+    #     GL.glVertex2f(x_pos + radius, y_pos - radius)
+    #     GL.glVertex2f(x_pos + radius, y_pos + radius)
+    #     GL.glVertex2f(x_pos - radius, y_pos + radius)
+    #     GL.glEnd()
 
     def draw_junction(self, x_pos, y_pos, radius=3):
-        """Draw a small filled square marking a wire junction."""
-        GL.glBegin(GL.GL_QUADS)
-        GL.glVertex2f(x_pos - radius, y_pos - radius)
-        GL.glVertex2f(x_pos + radius, y_pos - radius)
-        GL.glVertex2f(x_pos + radius, y_pos + radius)
-        GL.glVertex2f(x_pos - radius, y_pos + radius)
-        GL.glEnd()
+        """Draw a filled square marking a wire junction using Triangle Strips."""
+        vertices = np.array([
+            [x_pos - radius, y_pos - radius],
+            [x_pos + radius, y_pos - radius],
+            [x_pos - radius, y_pos + radius],
+            [x_pos + radius, y_pos + radius]
+        ], dtype=np.float32)
+
+        GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
+        GL.glVertexPointer(2, GL.GL_FLOAT, 0, vertices)
+        GL.glDrawArrays(GL.GL_TRIANGLE_STRIP, 0, 4)
+        GL.glDisableClientState(GL.GL_VERTEX_ARRAY)
 
     def text_width(self, text):
         """Return the pixel width of text in the label font."""
