@@ -534,6 +534,12 @@ class Parser:
         [src_id, src_port_id] = self.devices.get_signal_ids(src_signal_str)
         [dest_id, dest_port_id] = self.devices.get_signal_ids(dest_signal_str)
 
+        # src_id = self.names.lookup([final_src_dev])[0]
+        # src_port_id = self.names.lookup([final_src_port])[0] if final_src_port else None
+
+        # dest_id = self.names.lookup([final_dest_dev])[0]
+        # dest_port_id = self.names.lookup([final_dest_port])[0] if final_dest_port else None
+
         # Check explicitly if devices were correctly allocated in previous blocks
         if self.devices.get_device(src_id) is None or self.devices.get_device(dest_id) is None:
             self.report_error("ERR_211", f"Unresolved line routing assignment. Device identifier referenced was never initialized.")

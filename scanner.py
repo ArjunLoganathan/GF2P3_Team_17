@@ -63,7 +63,8 @@ class Scanner:
         # self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE INPUT_PORTS OUTPUT_PORTS".split(" ")
         # self.reserved_keyword_ids = self.names.lookup(self.reserved_keywords)
         self.reserved_keywords = self.names.reserved_keywords
-        self.reserved_keyword_ids = self.names.reserved_keyword_ids
+        # self.reserved_keyword_ids = self.names.reserved_keyword_ids
+        self.reserved_keyword_ids = set(self.names.reserved_keyword_ids)
         self.source_file = self.read_file()
         self.line_starts = [0] + [m.end() for m in re.finditer(r'\n', self.source_file)]
 
@@ -85,11 +86,32 @@ class Scanner:
 
         self.token_iterator = self.master_regex.finditer(self.source_file)
 
-    def print_error_line(self):
+    def print_error_line(self, error_index=None):
+        """Print the current line with a caret ^ marking the error position."""
+        
+        idx = error_index if error_index is not None else getattr(self, 'last_token_index', 0)
+        
         try:
+            line_start = self.line_starts[self.current_line - 1]
+            
+            if self.current_line < len(self.line_starts):
+                line_end = self.line_starts[self.current_line] - 1
+            else:
+                line_end = len(self.source_file)
+                
+            line_text = self.source_file[line_start:line_end]
+            
+            column = idx - line_start
+            
+            column = max(0, min(column, len(line_text)))
+            
+            print(f"Error on line {self.current_line}:")
+            print(line_text)
+            print(" " * column + "^")
+            
+        except IndexError as e:
             print(f"Error on line {self.current_line}")
-        except:
-            raise Exception("Error finding current line when doing error ting - thign should never call idk why its hers")
+            print(f"[Could not render visual caret due to indexing error: {e}]")
 
     def read_file(self):
         """Return the source text, reading from the file if not supplied."""
@@ -106,9 +128,13 @@ class Scanner:
         for match in self.token_iterator:
             kind = match.lastgroup
             start_index = match.span()[0]
-            if self.current_line < len(self.line_starts):
-                if start_index >= self.line_starts[self.current_line]:
-                    self.current_line += 1
+            self.last_token_index = start_index
+            # if self.current_line < len(self.line_starts):
+            #     if start_index >= self.line_starts[self.current_line]:
+            #         self.current_line += 1
+
+            while self.current_line < len(self.line_starts) and start_index >= self.line_starts[self.current_line]:
+                self.current_line += 1
 
             value = match.group()
             
