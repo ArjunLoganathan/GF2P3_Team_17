@@ -103,6 +103,7 @@ class Devices:
         self.names = names
 
         self.devices_list = []
+        self.devices_dict = {}
 
         gate_strings = ["AND", "OR", "NAND", "NOR", "XOR", "NOT"]
         device_strings = ["CLOCK", "SWITCH", "DTYPE"]
@@ -130,10 +131,11 @@ class Devices:
 
     def get_device(self, device_id):
         """Return the Device object corresponding to device_id."""
-        for device in self.devices_list:
-            if device.device_id == device_id:
-                return device
-        return None
+        return self.devices_dict.get(device_id, default = None)
+        # for device in self.devices_list:
+        #     if device.device_id == device_id:
+        #         return device
+        # return None
 
     def find_devices(self, device_kind=None):
         """Return a list of device IDs of the specified device_kind.
@@ -141,19 +143,25 @@ class Devices:
         Return a list of all device IDs in the network if no device_kind is
         specified.
         """
-        device_id_list = []
-        for device in self.devices_list:
-            if device_kind is None:
-                device_id_list.append(device.device_id)
-            elif device.device_kind == device_kind:
-                device_id_list.append(device.device_id)
-        return device_id_list
+
+        if device_kind is None:
+            return [device.device_id for device in self.devices_list]
+        return [device.device_id for device in self.devices_list 
+                if device.device_kind == device_kind]
+        # device_id_list = []
+        # for device in self.devices_list:
+        #     if device_kind is None:
+        #         device_id_list.append(device.device_id)
+        #     elif device.device_kind == device_kind:
+        #         device_id_list.append(device.device_id)
+        # return device_id_list
 
     def add_device(self, device_id, device_kind):
         """Add the specified device to the network."""
         new_device = Device(device_id)
         new_device.device_kind = device_kind
         self.devices_list.append(new_device)
+        self.devices_dict[device_id] = new_device
 
     def add_input(self, device_id, input_id):
         """Add the specified input to the specified device.
