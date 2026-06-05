@@ -81,6 +81,7 @@ class Gui(wx.Frame):
         self.cycles_completed = 0
         self.switch_buttons = {}
         self.monitor_buttons = {}
+        self.visible_monitors = set()
 
         # Configure the file menu
         file_menu = wx.Menu()
@@ -94,6 +95,7 @@ class Gui(wx.Frame):
         # Canvas tabs for drawing signals and the circuit structure
         self.notebook = wx.Notebook(self)
         self.canvas = MyGLCanvas(self.notebook, self.devices, self.monitors)
+        self.canvas.visible_monitors = self.visible_monitors
         self.circuit_canvas = CircuitCanvas(self.notebook, self.names,
                                             self.devices)
         self.compiler_panel = self.build_compiler_panel(self.notebook)
@@ -224,6 +226,8 @@ class Gui(wx.Frame):
         self.names, self.devices, self.network, self.monitors = model
         self.canvas.devices = self.devices
         self.canvas.monitors = self.monitors
+        self.visible_monitors = set(self.monitors.monitors_dictionary)
+        self.canvas.visible_monitors = self.visible_monitors
         self.circuit_canvas.names = self.names
         self.circuit_canvas.devices = self.devices
         self.cycles_completed = 0
@@ -276,27 +280,28 @@ class Gui(wx.Frame):
         toggle.SetLabel(str(state))
 
     def on_toggle_monitor(self, event):
-        """Handle a monitor toggle, adding or removing it immediately."""
+        """Show or hide a monitor without deleting its saved waveform trace."""
         toggle = event.GetEventObject()
         device_id, output_id = self.monitor_buttons[toggle]
+        monitor_key = (device_id, output_id)
         monitor_name = self.devices.get_signal_name(device_id, output_id)
         if toggle.GetValue():
-            error_type = self.monitors.make_monitor(device_id, output_id,
-                                                    self.cycles_completed)
+            if monitor_key not in self.monitors.monitors_dictionary:
+                error_type = self.monitors.make_monitor(device_id, output_id,
+                                                        self.cycles_completed)
+            else:
+                error_type = self.monitors.NO_ERROR
             if error_type == self.monitors.NO_ERROR:
+                self.visible_monitors.add(monitor_key)
                 toggle.SetLabel("On")
-                self.show_status("Added monitor " + monitor_name + ".")
+                self.show_status("Showing monitor " + monitor_name + ".")
             else:
                 toggle.SetValue(False)
                 self.show_status("Could not add monitor " + monitor_name + ".")
         else:
-            if self.monitors.remove_monitor(device_id, output_id):
-                toggle.SetLabel("Off")
-                self.show_status("Removed monitor " + monitor_name + ".")
-            else:
-                toggle.SetValue(True)
-                self.show_status("Could not remove monitor " +
-                                 monitor_name + ".")
+            self.visible_monitors.discard(monitor_key)
+            toggle.SetLabel("Off")
+            self.show_status("Hid monitor " + monitor_name + ".")
 
     def run_network(self, cycles):
         """Run the network for the specified number of cycles."""
@@ -345,8 +350,7 @@ class Gui(wx.Frame):
             device = self.devices.get_device(device_id)
             for output_id in device.outputs:
                 name = self.devices.get_signal_name(device_id, output_id)
-                monitored = (device_id, output_id) in \
-                    self.monitors.monitors_dictionary
+                monitored = (device_id, output_id) in self.visible_monitors
                 row = wx.BoxSizer(wx.HORIZONTAL)
                 label = wx.StaticText(self.monitor_panel, wx.ID_ANY, name)
                 toggle = wx.ToggleButton(self.monitor_panel, wx.ID_ANY,
