@@ -1,0 +1,40 @@
+# main_full_adder.txt
+# A standalone, runnable Full Adder built from two Half Adders.
+
+IMPORT:
+    HALFA FROM "sample/half_adder.txt";
+IMPORT END;
+
+DEVICES:
+    # 1. Provide switches to act as the inputs (A, B, and Carry In)
+    SWA = SWITCH 0;
+    SWB = SWITCH 1;
+    SWCin = SWITCH 1;
+
+    # 2. Instantiate BOTH Half Adders and the OR gate
+    HA1 = HALFA;
+    HA2 = HALFA;
+    OR1 = OR 2;
+DEVICES END;
+
+CONNECT:
+    # 3. First Half Adder adds SWA and SWB
+    SWA = HA1.A;
+    SWB = HA1.B;
+
+    # 4. Second Half Adder adds the SUM from HA1 and the Carry In
+    HA1.SUM = HA2.A;
+    SWCin = HA2.B;
+
+    # 5. The final Carry Out is an OR of the carries from both Half Adders
+    HA1.COUT = OR1.I1;
+    HA2.COUT = OR1.I2;
+CONNECT END;
+
+MONITOR:
+    # 6. Monitor the final Sum and final Carry Out
+    HA2.SUM;
+    OR1; 
+MONITOR END;
+
+END
