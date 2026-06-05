@@ -59,6 +59,9 @@ class Names:
 
         If the name string is not present in the names list, return None.
         """
+        if not isinstance(name_string, str):
+            return None
+
         if name_string in self.name_id_mapping:
             return self.name_id_mapping[name_string]
         return None
