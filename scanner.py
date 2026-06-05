@@ -63,7 +63,8 @@ class Scanner:
         # self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE INPUT_PORTS OUTPUT_PORTS".split(" ")
         # self.reserved_keyword_ids = self.names.lookup(self.reserved_keywords)
         self.reserved_keywords = self.names.reserved_keywords
-        self.reserved_keyword_ids = self.names.reserved_keyword_ids
+        # self.reserved_keyword_ids = self.names.reserved_keyword_ids
+        self.reserved_keyword_ids = set(self.names.reserved_keyword_ids)
         self.source_file = self.read_file()
         self.line_starts = [0] + [m.end() for m in re.finditer(r'\n', self.source_file)]
 
@@ -106,9 +107,12 @@ class Scanner:
         for match in self.token_iterator:
             kind = match.lastgroup
             start_index = match.span()[0]
-            if self.current_line < len(self.line_starts):
-                if start_index >= self.line_starts[self.current_line]:
-                    self.current_line += 1
+            # if self.current_line < len(self.line_starts):
+            #     if start_index >= self.line_starts[self.current_line]:
+            #         self.current_line += 1
+
+            while self.current_line < len(self.line_starts) and start_index >= self.line_starts[self.current_line]:
+                self.current_line += 1
 
             value = match.group()
             
