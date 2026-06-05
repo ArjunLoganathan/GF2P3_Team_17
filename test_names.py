@@ -2,7 +2,6 @@
 import pytest
 from names import Names
 
-
 @pytest.fixture
 def new_names():
     """Return a new instance of the Names class for each test."""
