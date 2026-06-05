@@ -131,7 +131,7 @@ class Devices:
 
     def get_device(self, device_id):
         """Return the Device object corresponding to device_id."""
-        return self.devices_dict.get(device_id, default = None)
+        return self.devices_dict.get(device_id,None)
         # for device in self.devices_list:
         #     if device.device_id == device_id:
         #         return device
