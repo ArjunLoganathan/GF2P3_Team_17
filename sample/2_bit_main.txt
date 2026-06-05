@@ -1,0 +1,45 @@
+# main_2_bit.txt
+# A standalone, runnable 2-bit adder built from two Full Adders.
+
+IMPORT:
+    FULLA FROM "sample/full_adder_from_halves.txt";
+IMPORT END;
+
+DEVICES:
+    # 1. Provide switches for Number A (A0, A1)
+    SWA0 = SWITCH 0;
+    SWA1 = SWITCH 1;
+
+    # 2. Provide switches for Number B (B0, B1)
+    SWB0 = SWITCH 1;
+    SWB1 = SWITCH 0;
+
+    # 3. Provide switch for initial Carry In
+    SWCin = SWITCH 0;
+
+    # 4. Instantiate two Full Adders
+    FA0 = FULLA;
+    FA1 = FULLA;
+DEVICES END;
+
+CONNECT:
+    # Wire inputs to the Least Significant Bit (FA0)
+    SWA0 = FA0.A;
+    SWB0 = FA0.B;
+    SWCin = FA0.Cin;
+
+    # Wire inputs to the Most Significant Bit (FA1)
+    SWA1 = FA1.A;
+    SWB1 = FA1.B;
+
+    FA0.COUT = FA1.Cin;
+CONNECT END;
+
+MONITOR:
+    # Monitor the results
+    FA0.SUM;   # Sum bit 0
+    FA1.SUM;   # Sum bit 1
+    FA1.COUT;  # Final carry out
+MONITOR END;
+
+END
