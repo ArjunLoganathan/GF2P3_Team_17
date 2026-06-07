@@ -692,60 +692,179 @@ class Parser:
             self.panic_recover([TokenType.SEMICOLON, TokenType.KEYWORD])
 
     def report_error(self, code_tag, specific_details=""):
-        """Increment internal error counters and print clean, descriptive diagnostic messages."""
+        """Increment error counters and print clean, layered layman and formal diagnostic messages."""
         self.error_count += 1
-        error_messages = {
-            "ERR_101": "Error 101: Unexpected end of file encountered before global 'END' sentinel.",
-            "ERR_102": "Error 102: Missing or misplaced character. Expected a trailing semicolon ';'.",
-            "ERR_103": "Error 103: Malformed block header. Expected a colon ':' following block declarations.",
-            "ERR_104": "Error 104: Block termination mismatch. Missing or malformed '<BLOCKNAME> END' clause.",
-            "ERR_105": "Error 105: Out-of-order block sequence structural arrangement declaration.",
-            "ERR_106": "Error 106: Missing or invalid assignment symbol. Expected '=' operator.",
-            "ERR_107": "Error 107: Expected a valid device parameter or configuration state integer.",
-            "ERR_108": "Error 108: Missing file mapping path assignment direction. Expected 'FROM' keyword.",
-            "ERR_109": "Error 109: Malformed character string. Paths must be wrapped in matching double quotes '\"'.",
-            "ERR_110": "Error 110: Invalid alphanumeric token layout format intercepted by Lexical Scanner.",
-            "ERR_111": "Error 111: Floating parameter token or syntax debris detected trailing statement lines.",
-            "ERR_112": "Error 112: Missing or malformed 'INPUT_PORTS' declaration block in sub-circuit file.",
-            "ERR_113": "Error 113: Missing or malformed 'OUTPUT_PORTS' declaration block in sub-circuit file.",
-            "ERR_201": "Error 201: Illegal type definition. Custom names cannot overwrite system primitives.",
-            "ERR_202": "Error 202: Duplicate custom type import registration path attempted.",
-            "ERR_203": "Error 203: Target blueprint layout file path could not be resolved by the workspace.",
-            "ERR_204": "Error 204: Child macro file compilation aborted due to nested syntax or semantic errors.",
-            "ERR_205": "Error 205: Duplicate component instance declaration. Device string identifier already active.",
-            "ERR_206": "Error 206: Unknown or unregistered device type configuration identifier mapping.",
-            "ERR_207": "Error 207: Component pin allocation constraints out-of-bounds. Primitives require 1-16 inputs.",
-            "ERR_208": "Error 208: Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1.",
-            "ERR_209": "Error 209: Invalid timing parameter properties. CLOCK frequencies must be positive non-zero integers.",
-            "ERR_210": "Error 210: Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments.",
-            "ERR_211": "Error 211: Unresolved line routing assignment. Device identifier referenced was never initialized.",
-            "ERR_212": "Error 212: Invalid input port identifier. Pin does not exist on this component type.",
-            "ERR_213": "Error 213: Invalid output port identifier. Pin does not exist on this component type.",
-            "ERR_214": "Error 214: Missing terminal pin qualifier. Primitives or macro blocks require explicit dot syntax.",
-            "ERR_215": "Error 215: Port fan-in constraint violation. Target input pin port already driven by an output source.",
-            "ERR_216": "Error 216: Directional typing error. Signal linkages must traverse strictly from Output to Input ports.",
-            "ERR_217": "Error 217: Macro interface typing mismatch. Child input/output port directionality has been flipped.",
-            "ERR_218": "Error 218: Cannot track diagnostics trace loop target. Component node is not a valid output line.",
-            "ERR_219": "Error 219: Duplicate monitor trace instruction targeting identical terminal routes.",
-            "ERR_220": "Error 220: Open Circuit Warning. Network structural synthesis layout contains unconnected input gates.",
-            "ERR_221": "Error 221: Circular dependency chain detected in file import statements.",
-            "ERR_222": "Error 222: Interface boundary mismatch. Port referenced in main layout does not exist on imported macro."
-        }
         
-        # If the scanner provides a custom error print method, call it
-        if hasattr(self.scanner, 'print_error_line'):
-            self.scanner.print_error_line()
-            
-        # Extract the line number from the current symbol
+        # Unified database splitting technical errors into clear explanations and formal definitions
+        error_catalog = {
+            "ERR_101": {
+                "layman": "The file ended unexpectedly. It looks like you forgot to close your circuit layout with a final 'END' statement.",
+                "formal": "Error 101: Unexpected end of file encountered before global 'END' sentinel."
+            },
+            "ERR_102": {
+                "layman": "A line is missing its punctuation. Check the end of your statements for a missing semicolon ';'.",
+                "formal": "Error 102: Missing or misplaced character. Expected a trailing semicolon ';'."
+            },
+            "ERR_103": {
+                "layman": "A block header is malformed. Make sure you placed a colon ':' directly after block names (e.g., 'DEVICES:', 'CONNECT:').",
+                "formal": "Error 103: Malformed block header. Expected a colon ':' following block declarations."
+            },
+            "ERR_104": {
+                "layman": "A configuration section wasn't closed correctly. Ensure you match headers with their closing tags (e.g., 'DEVICES END;').",
+                "formal": "Error 104: Block termination mismatch. Missing or malformed '<BLOCKNAME> END' clause."
+            },
+            "ERR_105": {
+                "layman": "The structure blocks in your text file are out of order. Ensure blocks flow sequentially (e.g., INPUT_PORTS, OUTPUT_PORTS, DEVICES, CONNECT, MONITOR).",
+                "formal": "Error 105: Out-of-order block sequence structural arrangement declaration."
+            },
+            "ERR_106": {
+                "layman": "An assignment rule is missing an equals sign. Use '=' to define your components or wire connections.",
+                "formal": "Error 106: Missing or invalid assignment symbol. Expected '=' operator."
+            },
+            "ERR_107": {
+                "layman": "A component declaration is missing its size or initial configuration number argument.",
+                "formal": "Error 107: Expected a valid device parameter or configuration state integer."
+            },
+            "ERR_108": {
+                "layman": "An import line is missing its source keyword. Use the 'FROM' modifier to describe the target file location.",
+                "formal": "Error 108: Missing file mapping path assignment direction. Expected 'FROM' keyword."
+            },
+            "ERR_109": {
+                "layman": "A file path string format is incorrect. Make sure the file name is wrapped securely inside double quotes '\"'.",
+                "formal": "Error 109: Malformed character string. Paths must be wrapped in matching double quotes '\"'."
+            },
+            "ERR_110": {
+                "layman": "The layout compiler hit a formatting hurdle or a stray character that it cannot recognize.",
+                "formal": "Error 110: Invalid alphanumeric token layout format intercepted by Lexical Scanner."
+            },
+            "ERR_111": {
+                "layman": "Stray syntax debris or extra parameters were found trailing down after the global system 'END' sentinel.",
+                "formal": "Error 111: Floating parameter token or syntax debris detected trailing statement lines."
+            },
+            "ERR_112": {
+                "layman": "An imported sub-circuit template is invalid because it is completely missing an 'INPUT_PORTS:' entry panel.",
+                "formal": "Error 112: Missing or malformed 'INPUT_PORTS' declaration block in sub-circuit file."
+            },
+            "ERR_113": {
+                "layman": "An imported sub-circuit template is invalid because it is completely missing an 'OUTPUT_PORTS:' exit panel.",
+                "formal": "Error 113: Missing or malformed 'OUTPUT_PORTS' declaration block in sub-circuit file."
+            },
+            "ERR_201": {
+                "layman": "Name conflict. You cannot name a custom macro block using reserved core component keywords (like SWITCH, AND, NOT).",
+                "formal": "Error 201: Illegal type definition. Custom names cannot overwrite system primitives."
+            },
+            "ERR_202": {
+                "layman": "This custom type identifier has already been registered or imported in this workspace session.",
+                "formal": "Error 202: Duplicate custom type import registration path attempted."
+            },
+            "ERR_203": {
+                "layman": "The target file cannot be located on disk. Double-check your path spelling or directory folder location.",
+                "formal": "Error 203: Target blueprint layout file path could not be resolved by the workspace."
+            },
+            "ERR_204": {
+                "layman": "The master circuit cannot build because errors were encountered inside the imported child file template.",
+                "formal": "Error 204: Child macro file compilation aborted due to nested syntax or semantic errors."
+            },
+            "ERR_205": {
+                "layman": "Component naming collision. Every instantiated device tag on the grid must be assigned a completely unique identifier.",
+                "formal": "Error 205: Duplicate component instance declaration. Device string identifier already active."
+            },
+            "ERR_206": {
+                "layman": "Unknown device type. The layout specifies an unrecognized primitive type or an unimported custom block name.",
+                "formal": "Error 206: Unknown or unregistered device type configuration identifier mapping."
+            },
+            "ERR_207": {
+                "layman": "Gate terminal overflow or underflow. Primitives like AND, OR, NAND, and NOR require between 1 and 16 input pins.",
+                "formal": "Error 207: Component pin allocation constraints out-of-bounds. Primitives require 1-16 inputs."
+            },
+            "ERR_208": {
+                "layman": "Mechanical SWITCH items can only be given a starting state parameter of absolute binary 0 (Off) or 1 (On).",
+                "formal": "Error 208: Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1."
+            },
+            "ERR_209": {
+                "layman": "CLOCK frequency properties must be configured using positive, non-zero integer timing steps.",
+                "formal": "Error 209: Invalid timing parameter properties. CLOCK frequencies must be positive non-zero integers."
+            },
+            "ERR_210": {
+                "layman": "Extraneous property argument. Primitives like XOR, NOT, and DTYPE (as well as subcircuits) do not accept trailing argument parameters.",
+                "formal": "Error 210: Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments."
+            },
+            "ERR_211": {
+                "layman": "Routing failure. You are trying to wire a component name that was never initialized in the 'DEVICES:' declaration block.",
+                "formal": "Error 211: Unresolved line routing assignment. Device identifier referenced was never initialized."
+            },
+            "ERR_212": {
+                "layman": "Pin mismatch. The input pin name you are trying to attach a wire to does not exist on this device type.",
+                "formal": "Error 212: Invalid input port identifier. Pin does not exist on this component type."
+            },
+            "ERR_213": {
+                "layman": "Pin mismatch. The output pin name you are trying to read a wire from does not exist on this device type.",
+                "formal": "Error 213: Invalid output port identifier. Pin does not exist on this component type."
+            },
+            "ERR_214": {
+                "layman": "Missing terminal qualifier pin. Multi-pin blocks (like DTYPE registers or custom macros) require explicit dot syntax selection (e.g., Device.Pin).",
+                "formal": "Error 214: Missing terminal pin qualifier. Primitives or macro blocks require explicit dot syntax."
+            },
+            "ERR_215": {
+                "layman": "Fan-in collision. The target input pin is already being driven by another output wire source. Inputs only accept a single connection.",
+                "formal": "Error 215: Port fan-in constraint violation. Target input pin port already driven by an output source."
+            },
+            "ERR_216": {
+                "layman": "Directional linkage violation. Connecting input-to-input or output-to-output is illegal. Wires must go exclusively from Output pins to Input pins.",
+                "formal": "Error 216: Directional typing error. Signal linkages must traverse strictly from Output to Input ports."
+            },
+            "ERR_217": {
+                "layman": "Macro typing error. The subcircuit's interface boundaries are flipped relative to how the master design attempts to link them.",
+                "formal": "Error 217: Macro interface typing mismatch. Child input/output port directionality has been flipped."
+            },
+            "ERR_218": {
+                "layman": "Cannot register monitor node. The requested terminal pathway is an input point or dead-end register that does not drive an output stream.",
+                "formal": "Error 218: Cannot track diagnostics trace loop target. Component node is not a valid output line."
+            },
+            "ERR_219": {
+                "layman": "Duplicate monitor point. This exact signal pin route is already active on the wave scope canvas timeline.",
+                "formal": "Error 219: Duplicate monitor trace instruction targeting identical terminal routes."
+            },
+            "ERR_220": {
+                "layman": "Open circuit safety failure. One or more logic component input pins have been left floating completely disconnected in your workspace.",
+                "formal": "Error 220: Open Circuit Warning. Network structural synthesis layout contains unconnected input gates."
+            },
+            "ERR_221": {
+                "layman": "Circular reference loop. A file cannot import itself or reference a chain of downstream sub-files that depend back on it.",
+                "formal": "Error 221: Circular dependency chain detected in file import statements."
+            },
+            "ERR_222": {
+                "layman": "Interface mismatch. The pin target referenced in your main file does not exist on the boundary of the imported subcircuit template.",
+                "formal": "Error 222: Interface boundary mismatch. Port referenced in main layout does not exist on imported macro."
+            }
+        }
+
+        # 1. Fetch line number metrics securely
         line_num = getattr(self.symbol, 'line', 'Unknown')
         
-        base_msg = error_messages.get(code_tag, f"Unknown Error Condition [{code_tag}].")
+        # 2. Extract error profile defaults
+        error_entry = error_catalog.get(code_tag, {
+            "layman": "An unrecognized system exception has halted execution.",
+            "formal": f"Unknown Error Condition [{code_tag}]."
+        })
         
-        # Inject the line number securely into the final print statement
+        # 3. Print clean human-centric visual block layout
+        print(f"\n==========================================")
+        print(f"SYNTAX/SEMANTIC ERROR ON LINE {line_num}")
+        print(f"------------------------------------------")
+        print(f"Description : {error_entry['layman']}")
+        
         if specific_details:
-            print(f"*** Line {line_num} | {base_msg} Details: {specific_details}\n")
-        else:
-            print(f"*** Line {line_num} | {base_msg}\n")
+            print(f"Context     : {specific_details}")
+            
+        print(f"\nFormal Log  : {error_entry['formal']}")
+        print(f"==========================================\n")
+
+        # 4. Drop scanner caret reference line cleanly below the data explanation block
+        if hasattr(self.scanner, 'print_error_line'):
+            print("File Context Position Reference:")
+            self.scanner.print_error_line()
+            print("-" * 42 + "\n")
     
     def panic_recover(self, stop_tokens):
         """Panic mode error recovery: skip symbols until a sync token is found."""
