@@ -18,6 +18,7 @@ class MyGLCanvas(wxcanvas.GLCanvas):
         self.context = wxcanvas.GLContext(self)
         self.devices = devices
         self.monitors = monitors
+        self.visible_monitors = None
         self.status_text = "Load a circuit, then run the simulation."
 
         # Initialise variables for panning
@@ -126,7 +127,14 @@ class MyGLCanvas(wxcanvas.GLCanvas):
 
     def draw_monitor_traces(self, canvas_width, canvas_height):
         """Draw the recorded signal traces for all current monitors."""
-        if not self.monitors.monitors_dictionary:
+        monitor_items = list(self.monitors.monitors_dictionary.items())
+        if self.visible_monitors is not None:
+            monitor_items = [
+                item for item in monitor_items
+                if item[0] in self.visible_monitors
+            ]
+
+        if not monitor_items:
             self.render_text("No monitor points selected.", 10,
                              canvas_height - 55)
             return
@@ -137,12 +145,12 @@ class MyGLCanvas(wxcanvas.GLCanvas):
         first_row_y = canvas_height - 95
         longest_trace = max(
             len(signal_list)
-            for signal_list in self.monitors.monitors_dictionary.values())
+            for _, signal_list in monitor_items)
         drawable_width = max(1, canvas_width - left_margin - right_margin)
         cycle_width = min(20, max(8, drawable_width / max(1, longest_trace)))
 
         for row, ((device_id, output_id), signal_list) in enumerate(
-                self.monitors.monitors_dictionary.items()):
+                monitor_items):
             base_y = first_row_y - row * row_height
             if base_y < 25:
                 self.render_text("More monitors below...", 10, 10)
