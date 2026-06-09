@@ -39,6 +39,7 @@ class Device:
         self.device_kind = None
         self.clock_half_period = None
         self.clock_counter = None
+        self.siggen_states = None
         self.switch_state = None
         self.dtype_memory = None
 
@@ -106,7 +107,7 @@ class Devices:
         self.devices_dict = {}
 
         gate_strings = ["AND", "OR", "NAND", "NOR", "XOR", "NOT"]
-        device_strings = ["CLOCK", "SWITCH", "DTYPE"]
+        device_strings = ["CLOCK", "SWITCH", "DTYPE", "SIGGEN"]
         dtype_inputs = ["CLK", "SET", "CLEAR", "DATA"]
         dtype_outputs = ["Q", "QBAR"]
 
@@ -121,7 +122,7 @@ class Devices:
                            self.XOR, self.NOT] = self.names.lookup(gate_strings)
                            
         self.device_types = [self.CLOCK, self.SWITCH,
-                             self.D_TYPE] = self.names.lookup(device_strings)
+                             self.D_TYPE, self.SIGGEN] = self.names.lookup(device_strings)
         self.dtype_input_ids = [self.CLK_ID, self.SET_ID, self.CLEAR_ID,
                                 self.DATA_ID] = self.names.lookup(dtype_inputs)
         self.dtype_output_ids = [
@@ -256,6 +257,10 @@ class Devices:
         device = self.get_device(device_id)
         device.clock_half_period = clock_half_period
         self.cold_startup()  # clock initialised to a random point in its cycle
+    
+    def make_siggen_clock(self, device_id, bit_string):
+        self.add_device(device_id, self.SIGGEN)
+
 
     def make_gate(self, device_id, device_kind, no_of_inputs):
         """Make logic gates with the specified number of inputs."""
