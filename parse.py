@@ -63,7 +63,8 @@ class Parser:
 
         # Cache IDs for primitives
         self.primitive_keywords = [
-            "SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR", "XOR", "NOT", "DTYPE", "SIGGEN"
+            "SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR", "XOR", "NOT",
+            "DTYPE", "RC", "SIGGEN"
         ]
         self.primitive_ids = [self.names.query(kw) for kw in self.primitive_keywords]
 
@@ -423,10 +424,6 @@ class Parser:
                         self.report_error("ERR_207", f"Component pin allocation constraints out-of-bounds. Primitives require 1-16 inputs on '{device_name_str}'.")
                     elif type_str in ["XOR", "NOT", "DTYPE"] and parameter_val is not None:
                         self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments.")
-                    elif type_str == "SIGGEN" and (parameter_val is None or not False in [i in ["0","1"] for i in parameter_val.split("")]):
-                        print("PLACEHOLDER SIGGEN ERROR LINE 416 of parse.py")
-                        self.report_error()
-
                     make_error = self.devices.make_device(scoped_name_id, device_type_id, device_property)
                     if make_error != self.devices.NO_ERROR:
                         if make_error == self.devices.DEVICE_PRESENT:
