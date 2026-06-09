@@ -63,12 +63,7 @@ class Parser:
 
         # Cache IDs for primitives
         self.primitive_keywords = [
-<<<<<<< HEAD
-            "SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR", "XOR", "NOT",
-            "DTYPE", "RC", "SIGGEN"
-=======
             "SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR", "XOR", "NOT", "DTYPE", "SIGGEN"
->>>>>>> 940d3aa326fe94191fa10d2bbcb4820f81cf15aa
         ]
         self.primitive_ids = [self.names.query(kw) for kw in self.primitive_keywords]
 
