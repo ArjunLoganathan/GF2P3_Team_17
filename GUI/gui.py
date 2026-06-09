@@ -8,6 +8,7 @@ Classes:
 Gui - configures the main window and all the widgets.
 """
 import io
+import os
 from contextlib import redirect_stdout
 
 import wx
@@ -20,6 +21,33 @@ from scanner import Scanner
 from parse import Parser
 from GUI.circuit_canvas import CircuitCanvas
 from GUI.waveform_canvas import MyGLCanvas
+from GUI.waveform_canvas_3d import WaveformCanvas3D
+
+
+SPANISH_TRANSLATIONS = {
+    "File": "Archivo",
+    "Help": "Ayuda",
+    "About": "Acerca de",
+    "Exit": "Salir",
+    "Waveforms 2D": "Ondas 2D",
+    "Waveforms 3D": "Ondas 3D",
+    "Circuit": "Circuito",
+    "Compiler": "Compilador",
+    "Cycles": "Ciclos",
+    "Completed cycles: ": "Ciclos completados: ",
+    "Run": "Ejecutar",
+    "Continue": "Continuar",
+    "Switches": "Interruptores",
+    "Monitors": "Monitores",
+    "Ready.": "Listo.",
+    "Circuit definition:": "Definicion del circuito:",
+    "Compile": "Compilar",
+    "Result:": "Resultado:",
+    "Compilation successful.": "Compilacion correcta.",
+    "Compilation failed. See the Compiler tab.": (
+        "Compilacion fallida. Consulte la pestana Compilador."
+    ),
+}
 
 
 def empty_model():
@@ -76,6 +104,10 @@ class Gui(wx.Frame):
     def __init__(self, title, path, source_text=""):
         """Initialise widgets and layout, then compile the initial source."""
         super().__init__(parent=None, title=title, size=(1000, 650))
+        self.language = "es" if os.environ.get("LANG", "").startswith("es") \
+            else "en"
+        self.locale = wx.Locale(wx.LANGUAGE_SPANISH) \
+            if self.language == "es" else wx.Locale(wx.LANGUAGE_ENGLISH)
         self.path = path
         self.names, self.devices, self.network, self.monitors = empty_model()
         self.cycles_completed = 0
@@ -86,47 +118,55 @@ class Gui(wx.Frame):
         # Configure the file menu
         file_menu = wx.Menu()
         menu_bar = wx.MenuBar()
-        file_menu.Append(wx.ID_HELP, "&Help")
-        file_menu.Append(wx.ID_ABOUT, "&About")
-        file_menu.Append(wx.ID_EXIT, "&Exit")
-        menu_bar.Append(file_menu, "&File")
+        file_menu.Append(wx.ID_HELP, "&" + self.tr("Help"))
+        file_menu.Append(wx.ID_ABOUT, "&" + self.tr("About"))
+        file_menu.Append(wx.ID_EXIT, "&" + self.tr("Exit"))
+        menu_bar.Append(file_menu, "&" + self.tr("File"))
         self.SetMenuBar(menu_bar)
 
         # Canvas tabs for drawing signals and the circuit structure
         self.notebook = wx.Notebook(self)
         self.canvas = MyGLCanvas(self.notebook, self.devices, self.monitors)
         self.canvas.visible_monitors = self.visible_monitors
+        self.canvas_3d = WaveformCanvas3D(self.notebook, self.devices,
+                                          self.monitors)
+        self.canvas_3d.visible_monitors = self.visible_monitors
         self.circuit_canvas = CircuitCanvas(self.notebook, self.names,
                                             self.devices)
         self.compiler_panel = self.build_compiler_panel(self.notebook)
-        self.notebook.AddPage(self.canvas, "Waveforms")
-        self.notebook.AddPage(self.circuit_canvas, "Circuit")
-        self.notebook.AddPage(self.compiler_panel, "Compiler")
+        self.notebook.AddPage(self.canvas, self.tr("Waveforms 2D"))
+        self.notebook.AddPage(self.canvas_3d, self.tr("Waveforms 3D"))
+        self.notebook.AddPage(self.circuit_canvas, self.tr("Circuit"))
+        self.notebook.AddPage(self.compiler_panel, self.tr("Compiler"))
 
         # Configure the widgets
         self.file_text = wx.StaticText(self, wx.ID_ANY,
-                                       "File: " + (path or "(none)"))
-        self.cycle_text = wx.StaticText(self, wx.ID_ANY, "Cycles")
+                                       self.tr("File") + ": " +
+                                       (path or "(none)"))
+        self.cycle_text = wx.StaticText(self, wx.ID_ANY, self.tr("Cycles"))
         self.spin = wx.SpinCtrl(self, wx.ID_ANY, "10", min=0, max=100000)
         self.completed_text = wx.StaticText(self, wx.ID_ANY,
-                                            "Completed cycles: 0")
-        self.run_button = wx.Button(self, wx.ID_ANY, "Run")
-        self.continue_button = wx.Button(self, wx.ID_ANY, "Continue")
-        self.switch_text = wx.StaticText(self, wx.ID_ANY, "Switches")
+                                            self.tr("Completed cycles: ") +
+                                            "0")
+        self.run_button = wx.Button(self, wx.ID_ANY, self.tr("Run"))
+        self.continue_button = wx.Button(self, wx.ID_ANY,
+                                         self.tr("Continue"))
+        self.switch_text = wx.StaticText(self, wx.ID_ANY, self.tr("Switches"))
         self.switch_panel = wx.ScrolledWindow(self, wx.ID_ANY,
                                               style=wx.VSCROLL | wx.BORDER_SIMPLE)
         self.switch_panel.SetScrollRate(0, 10)
         self.switch_panel.SetMinSize((-1, 160))
         self.switch_sizer = wx.BoxSizer(wx.VERTICAL)
         self.switch_panel.SetSizer(self.switch_sizer)
-        self.monitor_text = wx.StaticText(self, wx.ID_ANY, "Monitors")
+        self.monitor_text = wx.StaticText(self, wx.ID_ANY,
+                                          self.tr("Monitors"))
         self.monitor_panel = wx.ScrolledWindow(self, wx.ID_ANY,
                                                style=wx.VSCROLL | wx.BORDER_SIMPLE)
         self.monitor_panel.SetScrollRate(0, 10)
         self.monitor_panel.SetMinSize((-1, 160))
         self.monitor_sizer = wx.BoxSizer(wx.VERTICAL)
         self.monitor_panel.SetSizer(self.monitor_sizer)
-        self.status = wx.StaticText(self, wx.ID_ANY, "Ready.")
+        self.status = wx.StaticText(self, wx.ID_ANY, self.tr("Ready."))
 
         # Bind events to widgets
         self.Bind(wx.EVT_MENU, self.on_menu)
@@ -163,7 +203,14 @@ class Gui(wx.Frame):
             self.on_compile()
         else:
             wx.CallAfter(self.canvas.render, "Ready.")
+            wx.CallAfter(self.canvas_3d.render, "Ready.")
             wx.CallAfter(self.circuit_canvas.render)
+
+    def tr(self, text):
+        """Return translated GUI text for the active language."""
+        if self.language == "es":
+            return SPANISH_TRANSLATIONS.get(text, text)
+        return text
 
     def on_menu(self, event):
         """Handle the event when the user selects a menu item."""
@@ -171,14 +218,19 @@ class Gui(wx.Frame):
         if menu_id == wx.ID_EXIT:
             self.Close(True)
         if menu_id == wx.ID_HELP:
-            wx.MessageBox("Run: start from cycle 0 with cleared traces.\n"
-                          "Continue: add more cycles to the current run.\n"
-                          "Switches: click a switch's toggle to flip it 0/1.\n"
-                          "Monitors: toggle each output On/Off to show it.",
-                          "Logsim Help", wx.ICON_INFORMATION | wx.OK)
+            wx.MessageBox(
+                self.tr("Run") + ": start from cycle 0 with cleared traces.\n"
+                + self.tr("Continue") + ": add more cycles to the current "
+                "run.\n" + self.tr("Switches") + ": click a switch's toggle "
+                "to flip it 0/1.\n" + self.tr("Monitors") +
+                ": toggle each output On/Off to show it.",
+                "Logsim " + self.tr("Help"), wx.ICON_INFORMATION | wx.OK)
         if menu_id == wx.ID_ABOUT:
-            wx.MessageBox("Logic Simulator\nGraphical user interface",
-                          "About Logsim", wx.ICON_INFORMATION | wx.OK)
+            wx.MessageBox(
+                "Logic Simulator\nGraphical user interface\n"
+                "Internacionalizacion: espanol\n"
+                "Non-Latin demo: Καλημερα",
+                self.tr("About") + " Logsim", wx.ICON_INFORMATION | wx.OK)
 
     def build_compiler_panel(self, parent):
         """Build the Compiler tab: an editor, a Compile button, and results."""
@@ -190,18 +242,20 @@ class Gui(wx.Frame):
         self.editor = wx.TextCtrl(panel, wx.ID_ANY,
                                   style=wx.TE_MULTILINE | wx.HSCROLL)
         self.editor.SetFont(code_font)
-        self.compile_button = wx.Button(panel, wx.ID_ANY, "Compile")
+        self.compile_button = wx.Button(panel, wx.ID_ANY, self.tr("Compile"))
         self.compile_button.Bind(wx.EVT_BUTTON, self.on_compile)
         self.compiler_output = wx.TextCtrl(
             panel, wx.ID_ANY,
             style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
         self.compiler_output.SetFont(code_font)
 
-        sizer.Add(wx.StaticText(panel, wx.ID_ANY, "Circuit definition:"),
+        sizer.Add(wx.StaticText(panel, wx.ID_ANY,
+                                self.tr("Circuit definition:")),
                   0, wx.ALL, 5)
         sizer.Add(self.editor, 3, wx.EXPAND | wx.ALL, 5)
         sizer.Add(self.compile_button, 0, wx.ALL, 5)
-        sizer.Add(wx.StaticText(panel, wx.ID_ANY, "Result:"), 0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(panel, wx.ID_ANY, self.tr("Result:")),
+                  0, wx.ALL, 5)
         sizer.Add(self.compiler_output, 1, wx.EXPAND | wx.ALL, 5)
         panel.SetSizer(sizer)
         return panel
@@ -211,29 +265,34 @@ class Gui(wx.Frame):
         ok, model, output = compile_source(self.editor.GetValue())
         if ok and model is not None:
             self.load_model(model)
-            message = "Compilation successful."
+            message = self.tr("Compilation successful.")
             if output.strip():
                 message += "\n\n" + output
             self.compiler_output.SetValue(message)
-            self.show_status("Compilation successful.")
+            self.show_status(self.tr("Compilation successful."))
         else:
             self.compiler_output.SetValue(
                 output.strip() or "Compilation failed.")
-            self.show_status("Compilation failed. See the Compiler tab.")
+            self.show_status(
+                self.tr("Compilation failed. See the Compiler tab."))
 
     def load_model(self, model):
         """Point the GUI and canvases at a freshly compiled model."""
         self.names, self.devices, self.network, self.monitors = model
         self.canvas.devices = self.devices
         self.canvas.monitors = self.monitors
+        self.canvas_3d.devices = self.devices
+        self.canvas_3d.monitors = self.monitors
         self.visible_monitors = set(self.monitors.monitors_dictionary)
         self.canvas.visible_monitors = self.visible_monitors
+        self.canvas_3d.visible_monitors = self.visible_monitors
         self.circuit_canvas.names = self.names
         self.circuit_canvas.devices = self.devices
         self.cycles_completed = 0
         self.update_controls()
         self.circuit_canvas.init = False
         wx.CallAfter(self.canvas.render, "Ready.")
+        wx.CallAfter(self.canvas_3d.render, "Ready.")
         wx.CallAfter(self.circuit_canvas.render)
 
     def on_run_button(self, event):
@@ -371,11 +430,12 @@ class Gui(wx.Frame):
 
     def update_cycle_text(self):
         """Display the number of completed simulation cycles."""
-        self.completed_text.SetLabel("Completed cycles: " +
+        self.completed_text.SetLabel(self.tr("Completed cycles: ") +
                                      str(self.cycles_completed))
 
     def show_status(self, message):
         """Display a status message and redraw the canvas."""
         self.status.SetLabel(message)
         self.canvas.render(message)
+        self.canvas_3d.render(message)
 

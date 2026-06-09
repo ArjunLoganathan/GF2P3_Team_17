@@ -1,0 +1,20 @@
+# Demonstrates the maintenance-phase RC and SIGGEN devices.
+
+DEVICES:
+    ResetPulse = RC 3;
+    Pattern = SIGGEN 0101;
+    G1 = AND 2;
+DEVICES END;
+
+CONNECT:
+    ResetPulse = G1.I1;
+    Pattern = G1.I2;
+CONNECT END;
+
+MONITOR:
+    ResetPulse;
+    Pattern;
+    G1;
+MONITOR END;
+
+END

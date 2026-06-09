@@ -346,12 +346,53 @@ class Network:
                     device.outputs[None] = self.devices.RISING
             device.clock_counter += 1
 
+    def update_rc_devices(self):
+        """Update RC outputs once per simulation cycle."""
+        rc_devices = self.devices.find_devices(self.devices.RC)
+        for device_id in rc_devices:
+            device = self.devices.get_device(device_id)
+            target = self.devices.HIGH
+            if device.rc_counter >= device.rc_delay:
+                target = self.devices.LOW
+            device.outputs[None] = self.update_signal(
+                device.outputs[None], target)
+            device.rc_counter += 1
+
+    def update_siggen_devices(self):
+        """Update SIGGEN outputs once per simulation cycle."""
+        siggen_devices = self.devices.find_devices(self.devices.SIGGEN)
+        for device_id in siggen_devices:
+            device = self.devices.get_device(device_id)
+            index = device.siggen_counter % len(device.siggen_pattern)
+            target = self.devices.HIGH if device.siggen_pattern[index] \
+                else self.devices.LOW
+            device.outputs[None] = self.update_signal(
+                device.outputs[None], target)
+            device.siggen_counter += 1
+
+    def execute_source_device(self, device_id):
+        """Settle one source device output after an edge update."""
+        output_signal = self.get_output_signal(device_id, output_id=None)
+        if output_signal == self.devices.RISING:
+            device = self.devices.get_device(device_id)
+            device.outputs[None] = self.update_signal(output_signal,
+                                                      self.devices.HIGH)
+            return True
+        if output_signal == self.devices.FALLING:
+            device = self.devices.get_device(device_id)
+            device.outputs[None] = self.update_signal(output_signal,
+                                                      self.devices.LOW)
+            return True
+        return output_signal in [self.devices.HIGH, self.devices.LOW]
+
     def execute_network(self):
         """Execute all the devices in the network for one simulation cycle.
 
         Return True if successful and the network does not oscillate.
         """
         clock_devices = self.devices.find_devices(self.devices.CLOCK)
+        rc_devices = self.devices.find_devices(self.devices.RC)
+        siggen_devices = self.devices.find_devices(self.devices.SIGGEN)
         switch_devices = self.devices.find_devices(self.devices.SWITCH)
         d_type_devices = self.devices.find_devices(self.devices.D_TYPE)
         and_devices = self.devices.find_devices(self.devices.AND)
@@ -363,6 +404,8 @@ class Network:
 
         # This sets clock signals to RISING or FALLING, where necessary
         self.update_clocks()
+        self.update_rc_devices()
+        self.update_siggen_devices()
 
         # Number of iterations to wait for the signals to settle before
         # declaring the network unstable
@@ -383,6 +426,12 @@ class Network:
                     return False
             for device_id in clock_devices:  # complete clock executions
                 if not self.execute_clock(device_id):
+                    return False
+            for device_id in rc_devices:
+                if not self.execute_source_device(device_id):
+                    return False
+            for device_id in siggen_devices:
+                if not self.execute_source_device(device_id):
                     return False
             for device_id in and_devices:  # execute AND gate devices
                 if not self.execute_gate(device_id, self.devices.HIGH,

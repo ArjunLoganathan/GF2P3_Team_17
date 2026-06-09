@@ -148,6 +148,13 @@ class MyGLCanvas(wxcanvas.GLCanvas):
             for _, signal_list in monitor_items)
         drawable_width = max(1, canvas_width - left_margin - right_margin)
         cycle_width = min(20, max(8, drawable_width / max(1, longest_trace)))
+        visible_rows = min(
+            len(monitor_items),
+            max(1, int((first_row_y - 25) / row_height) + 1)
+        )
+
+        self.draw_cycle_grid(left_margin, first_row_y, row_height,
+                             visible_rows, longest_trace, cycle_width)
 
         for row, ((device_id, output_id), signal_list) in enumerate(
                 monitor_items):
@@ -167,21 +174,43 @@ class MyGLCanvas(wxcanvas.GLCanvas):
                            max(1, len(signal_list)) * cycle_width, high_y)
 
             GL.glColor3f(0.0, 0.0, 1.0)
+            previous_y = None
             for index, signal in enumerate(signal_list):
                 x_start = left_margin + index * cycle_width
                 x_end = x_start + cycle_width
-                if signal == self.devices.HIGH:
-                    self.draw_line(x_start, high_y, x_end, high_y)
-                elif signal == self.devices.LOW:
-                    self.draw_line(x_start, low_y, x_end, low_y)
-                elif signal == self.devices.RISING:
-                    self.draw_line(x_start, low_y, x_end, high_y)
-                elif signal == self.devices.FALLING:
-                    self.draw_line(x_start, high_y, x_end, low_y)
+
+                if signal in [self.devices.HIGH, self.devices.RISING]:
+                    current_y = high_y
+                elif signal in [self.devices.LOW, self.devices.FALLING]:
+                    current_y = low_y
                 elif signal == self.devices.BLANK:
                     GL.glColor3f(0.6, 0.6, 0.6)
                     self.draw_line(x_start, low_y + 11, x_end, low_y + 11)
                     GL.glColor3f(0.0, 0.0, 1.0)
+                    previous_y = None
+                    continue
+                else:
+                    continue
+
+                if previous_y is not None and previous_y != current_y:
+                    self.draw_line(x_start, previous_y, x_start, current_y)
+                self.draw_line(x_start, current_y, x_end, current_y)
+                previous_y = current_y
+
+    def draw_cycle_grid(self, left_margin, first_row_y, row_height,
+                        visible_rows, longest_trace, cycle_width):
+        """Draw vertical guide lines for each simulation cycle."""
+        top_y = first_row_y + 30
+        bottom_y = first_row_y - (visible_rows - 1) * row_height - 10
+
+        GL.glColor3f(0.9, 0.9, 0.9)
+        for cycle in range(longest_trace + 1):
+            x_pos = left_margin + cycle * cycle_width
+            self.draw_line(x_pos, bottom_y, x_pos, top_y)
+
+            if cycle_width >= 14 or cycle % 5 == 0:
+                self.render_text(str(cycle), x_pos - 3, top_y + 12)
+                GL.glColor3f(0.9, 0.9, 0.9)
 
     def draw_line(self, x_start, y_start, x_end, y_end):
         """Draw a single straight line."""

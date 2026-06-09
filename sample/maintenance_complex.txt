@@ -1,0 +1,62 @@
+# Larger maintenance-phase demo.
+# Exercises IMPORT, SIGGEN, RC, fanout, gates, DTYPEs and many monitors.
+
+IMPORT:
+    HALFA FROM "sample/half_adder.txt";
+IMPORT END;
+
+DEVICES:
+    ResetPulse = RC 4;
+    ClkFast = CLOCK 1;
+    A = SIGGEN 011001;
+    B = SIGGEN 001111;
+    CarryMask = SWITCH 1;
+    Zero = SWITCH 0;
+    HA0 = HALFA;
+    Mix = XOR;
+    Gate1 = NAND 2;
+    StoreSum = DTYPE;
+    StoreCarry = DTYPE;
+    FinalOut = AND 3;
+DEVICES END;
+
+CONNECT:
+    A = HA0.A;
+    B = HA0.B;
+
+    A = Mix.I1;
+    ResetPulse = Mix.I2;
+    Mix = Gate1.I1;
+    CarryMask = Gate1.I2;
+
+    Gate1 = StoreSum.DATA;
+    ClkFast = StoreSum.CLK;
+    ResetPulse = StoreSum.SET;
+    Zero = StoreSum.CLEAR;
+
+    B = StoreCarry.DATA;
+    ClkFast = StoreCarry.CLK;
+    Zero = StoreCarry.SET;
+    ResetPulse = StoreCarry.CLEAR;
+
+    StoreSum.Q = FinalOut.I1;
+    StoreCarry.QBAR = FinalOut.I2;
+    A = FinalOut.I3;
+CONNECT END;
+
+MONITOR:
+    ResetPulse;
+    A;
+    B;
+    HA0.SUM;
+    HA0.COUT;
+    Mix;
+    Gate1;
+    StoreSum.Q;
+    StoreSum.QBAR;
+    StoreCarry.Q;
+    StoreCarry.QBAR;
+    FinalOut;
+MONITOR END;
+
+END
