@@ -413,7 +413,7 @@ class Parser:
                     elif type_str in ["XOR", "NOT", "DTYPE"] and parameter_val is not None:
                         self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments.")
                     elif type_str == "SIGGEN" and (parameter_val is None or not False in [i in ["0","1"] for i in parameter_val.split("")]):
-                        print("PLACEHOLDER ")
+                        print("PLACEHOLDER SIGGEN ERROR LINE 416 of parse.py")
                         self.report_error()
 
                     make_error = self.devices.make_device(scoped_name_id, device_type_id, parameter_val)
