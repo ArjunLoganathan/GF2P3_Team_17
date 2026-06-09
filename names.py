@@ -43,7 +43,14 @@ class Names:
         self.error_code_count = 0  # how many error codes have been declared
         self.name_id_strings = []
         self.name_id_mapping = {}
+<<<<<<< HEAD
+        self.reserved_keywords = (
+            "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR "
+            "NAND NOR XOR NOT DTYPE RC SIGGEN INPUT_PORTS OUTPUT_PORTS"
+        ).split(" ")
+=======
         self.reserved_keywords = "IMPORT FROM DEVICES CONNECT MONITOR END SWITCH CLOCK AND OR NAND NOR XOR NOT DTYPE INPUT_PORTS OUTPUT_PORTS SIGGEN".split(" ")
+>>>>>>> 940d3aa326fe94191fa10d2bbcb4820f81cf15aa
         self.reserved_keyword_ids = self.lookup(self.reserved_keywords)
 
     def unique_error_codes(self, num_error_codes):

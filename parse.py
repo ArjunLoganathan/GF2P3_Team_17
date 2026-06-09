@@ -63,7 +63,12 @@ class Parser:
 
         # Cache IDs for primitives
         self.primitive_keywords = [
+<<<<<<< HEAD
+            "SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR", "XOR", "NOT",
+            "DTYPE", "RC", "SIGGEN"
+=======
             "SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR", "XOR", "NOT", "DTYPE", "SIGGEN"
+>>>>>>> 940d3aa326fe94191fa10d2bbcb4820f81cf15aa
         ]
         self.primitive_ids = [self.names.query(kw) for kw in self.primitive_keywords]
 
@@ -371,9 +376,11 @@ class Parser:
             self.panic_recover([TokenType.SEMICOLON])
             return
 
+        parameter_text = None
         parameter_val = None
         if self.symbol.type == TokenType.NUMBER:
-            parameter_val = int(self.names.get_string(self.symbol.id))
+            parameter_text = self.names.get_string(self.symbol.id)
+            parameter_val = int(parameter_text)
             self.symbol = self.scanner.get_symbol()
             if not is_primitive:
                 self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments. (Or custom macro '{device_name_str}')")
@@ -387,7 +394,8 @@ class Parser:
             # Enforce required parameters for structural primitives that expect them
             if is_primitive:
                 type_str = self.names.get_string(device_type_id)
-                if type_str in ["SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR"]:
+                if type_str in ["SWITCH", "CLOCK", "AND", "OR", "NAND",
+                                "NOR", "RC", "SIGGEN"]:
                     self.report_error("ERR_107", "Expected a valid device parameter or configuration state integer.")
                 elif type_str in ["SIGGEN"]:
                     print("Placeholder line 388 of parser - new error state instead of invalid integer")
@@ -404,10 +412,18 @@ class Parser:
                 else:
                     type_str = self.names.get_string(device_type_id)
                     
+                    device_property = parameter_val
+                    if type_str == "SIGGEN":
+                        device_property = parameter_text
+
                     if type_str == "SWITCH" and (parameter_val is None or parameter_val not in [0, 1]):
                         self.report_error("ERR_208", f"Invalid initialization properties. SWITCH types must map to absolute binary 0 or 1 on '{device_name_str}'.")
                     elif type_str == "CLOCK" and (parameter_val is None or parameter_val <= 0):
                         self.report_error("ERR_209", f"Invalid timing parameter properties. CLOCK frequencies must be positive non-zero integers on '{device_name_str}'.")
+                    elif type_str == "RC" and (parameter_val is None or parameter_val <= 0):
+                        self.report_error("ERR_209", f"Invalid timing parameter properties. RC delay must be a positive non-zero integer on '{device_name_str}'.")
+                    elif type_str == "SIGGEN" and (parameter_text is None or any(bit not in "01" for bit in parameter_text)):
+                        self.report_error("ERR_209", f"Invalid waveform pattern. SIGGEN requires a binary pattern such as 0101 on '{device_name_str}'.")
                     elif type_str in ["AND", "OR", "NAND", "NOR"] and (parameter_val is None or not (1 <= parameter_val <= 16)):
                         self.report_error("ERR_207", f"Component pin allocation constraints out-of-bounds. Primitives require 1-16 inputs on '{device_name_str}'.")
                     elif type_str in ["XOR", "NOT", "DTYPE"] and parameter_val is not None:
@@ -416,7 +432,7 @@ class Parser:
                         print("PLACEHOLDER SIGGEN ERROR LINE 416 of parse.py")
                         self.report_error()
 
-                    make_error = self.devices.make_device(scoped_name_id, device_type_id, parameter_val)
+                    make_error = self.devices.make_device(scoped_name_id, device_type_id, device_property)
                     if make_error != self.devices.NO_ERROR:
                         if make_error == self.devices.DEVICE_PRESENT:
                             self.report_error("ERR_205", f"Duplicate component instance declaration. Device string identifier already active: '{device_name_str}'.")
