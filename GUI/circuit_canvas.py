@@ -669,14 +669,20 @@ class CircuitCanvas(wxcanvas.GLCanvas):
         GL.glDisableClientState(GL.GL_VERTEX_ARRAY)
 
     def text_width(self, text):
-        """Return the pixel width of text in the label font."""
-        font = GLUT.GLUT_BITMAP_HELVETICA_12
-        return sum(GLUT.glutBitmapWidth(font, ord(c)) for c in str(text))
+        """Return the approximate width of scalable label text."""
+        font = GLUT.GLUT_STROKE_ROMAN
+        text_scale = 0.10
+        return sum(GLUT.glutStrokeWidth(font, ord(c)) for c in str(text)) * \
+            text_scale
 
     def render_text(self, text, x_pos, y_pos):
         """Handle text drawing operations."""
         GL.glColor3f(0.0, 0.0, 0.0)
-        GL.glRasterPos2f(x_pos, y_pos)
-        font = GLUT.GLUT_BITMAP_HELVETICA_12
+        font = GLUT.GLUT_STROKE_ROMAN
+        text_scale = 0.10
+        GL.glPushMatrix()
+        GL.glTranslatef(x_pos, y_pos, 0)
+        GL.glScalef(text_scale, text_scale, 1)
         for character in str(text):
-            GLUT.glutBitmapCharacter(font, ord(character))
+            GLUT.glutStrokeCharacter(font, ord(character))
+        GL.glPopMatrix()

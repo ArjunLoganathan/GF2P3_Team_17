@@ -222,12 +222,20 @@ class MyGLCanvas(wxcanvas.GLCanvas):
     def render_text(self, text, x_pos, y_pos):
         """Handle text drawing operations."""
         GL.glColor3f(0.0, 0.0, 0.0)  # text is black
-        GL.glRasterPos2f(x_pos, y_pos)
-        font = GLUT.GLUT_BITMAP_HELVETICA_12
+        font = GLUT.GLUT_STROKE_ROMAN
+        text_scale = 0.10
+        GL.glPushMatrix()
+        GL.glTranslatef(x_pos, y_pos, 0)
+        GL.glScalef(text_scale, text_scale, 1)
 
-        for character in text:
+        for character in str(text):
             if character == '\n':
+                GL.glPopMatrix()
                 y_pos = y_pos - 20
-                GL.glRasterPos2f(x_pos, y_pos)
+                GL.glPushMatrix()
+                GL.glTranslatef(x_pos, y_pos, 0)
+                GL.glScalef(text_scale, text_scale, 1)
             else:
-                GLUT.glutBitmapCharacter(font, ord(character))
+                GLUT.glutStrokeCharacter(font, ord(character))
+
+        GL.glPopMatrix()
