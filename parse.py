@@ -377,12 +377,22 @@ class Parser:
             self.symbol = self.scanner.get_symbol()
             if not is_primitive:
                 self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments. (Or custom macro '{device_name_str}')")
+        elif self.symbol.type == TokenType.STRING:
+            parameter_val = str(self.names.get_string(self.symbol.id))
+            self.symbol = self.scanner.get_symbol()
+            if not is_primitive:
+                print("PLACEHOLD ERROR REPORTING line 384 parse.py")
+                self.report_error()
         else:
             # Enforce required parameters for structural primitives that expect them
             if is_primitive:
                 type_str = self.names.get_string(device_type_id)
                 if type_str in ["SWITCH", "CLOCK", "AND", "OR", "NAND", "NOR"]:
                     self.report_error("ERR_107", "Expected a valid device parameter or configuration state integer.")
+                elif type_str in ["SIGGEN"]:
+                    print("Placeholder line 388 of parser - new error state instead of invalid integer")
+                    self.report_error("PLACEHOLD_LINE 388 of parse.py")
+
 
         if self.error_count == 0:
             if self.is_blueprint_mode:
@@ -402,6 +412,9 @@ class Parser:
                         self.report_error("ERR_207", f"Component pin allocation constraints out-of-bounds. Primitives require 1-16 inputs on '{device_name_str}'.")
                     elif type_str in ["XOR", "NOT", "DTYPE"] and parameter_val is not None:
                         self.report_error("ERR_210", f"Extraneous parameter passed. Primitives like XOR, NOT, and DTYPE do not accept arguments.")
+                    elif type_str == "SIGGEN" and (parameter_val is None or not False in [i in ["0","1"] for i in parameter_val.split("")]):
+                        print("PLACEHOLDER ")
+                        self.report_error()
 
                     make_error = self.devices.make_device(scoped_name_id, device_type_id, parameter_val)
                     if make_error != self.devices.NO_ERROR:
