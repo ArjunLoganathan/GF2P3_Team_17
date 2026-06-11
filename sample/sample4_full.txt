@@ -1,0 +1,30 @@
+IMPORT:
+    HALF_ADDER FROM "sample/sample4_half.txt";   
+IMPORT END;
+
+DEVICES:
+    SwA = SWITCH 1;      
+    SwB = SWITCH 0;     
+    SwCin = SWITCH 1;    
+    HA1 = HALF_ADDER;   
+    HA2 = HALF_ADDER;   
+    OrGate = OR 2;        
+DEVICES END;
+
+CONNECT:
+    SwA = HA1.A;    
+    SwB = HA1.B;
+    
+    HA1.SUM = HA2.A;
+    SwCin = HA2.B;
+    
+    HA1.COUT = OrGate.I1;
+    HA2.COUT = OrGate.I2;
+CONNECT END;
+
+MONITOR:
+    HA2.SUM;            
+    OrGate;  
+MONITOR END;
+
+END

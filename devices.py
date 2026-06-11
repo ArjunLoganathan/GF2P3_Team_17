@@ -274,7 +274,8 @@ class Devices:
 
         # Single-input gates (like NOT) don't use input pin numeric suffixes
         if no_of_inputs == 1:
-            self.add_input(device_id, input_id=None)
+            [input_id] = self.names.lookup(["I"])
+            self.add_input(device_id, input_id)
         else:
             for input_number in range(1, no_of_inputs + 1):
                 input_name = "".join(["I", str(input_number)])
