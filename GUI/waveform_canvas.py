@@ -35,6 +35,13 @@ class MyGLCanvas(wxcanvas.GLCanvas):
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse)
 
+    def tr(self, text):
+        """Helper to get translations from the main GUI."""
+        parent = wx.GetTopLevelParent(self)
+        if hasattr(parent, 'tr'):
+            return parent.tr(text)
+        return text
+    
     def init_gl(self):
         """Configure and initialise the OpenGL context."""
         size = self.GetClientSize()
@@ -65,7 +72,7 @@ class MyGLCanvas(wxcanvas.GLCanvas):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
         size = self.GetClientSize()
-        self.render_text(self.status_text, 10, size.height - 20)
+        self.render_text(self.tr(self.status_text), 10, size.height - 20)
         self.draw_monitor_traces(size.width, size.height)
 
         # We have been drawing to the back buffer, flush the graphics pipeline
@@ -135,7 +142,7 @@ class MyGLCanvas(wxcanvas.GLCanvas):
             ]
 
         if not monitor_items:
-            self.render_text("No monitor points selected.", 10,
+            self.render_text(self.tr("No monitor points selected."), 10,
                              canvas_height - 55)
             return
 
@@ -160,7 +167,7 @@ class MyGLCanvas(wxcanvas.GLCanvas):
                 monitor_items):
             base_y = first_row_y - row * row_height
             if base_y < 25:
-                self.render_text("More monitors below...", 10, 10)
+                self.render_text(self.tr("More monitors below..."), 10, 10)
                 break
             low_y = base_y
             high_y = base_y + 22

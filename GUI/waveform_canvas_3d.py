@@ -35,6 +35,13 @@ class WaveformCanvas3D(wxcanvas.GLCanvas):
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.Bind(wx.EVT_MOUSE_EVENTS, self.on_mouse)
 
+    def tr(self, text):
+        """Helper to get translations from the main GUI."""
+        parent = wx.GetTopLevelParent(self)
+        if hasattr(parent, 'tr'):
+            return parent.tr(text)
+        return text
+    
     def init_gl(self):
         """Configure the OpenGL perspective view."""
         size = self.GetClientSize()
@@ -72,7 +79,7 @@ class WaveformCanvas3D(wxcanvas.GLCanvas):
 
         self.draw_monitor_traces()
         GL.glColor3f(1.0, 1.0, 1.0)
-        self.render_text(self.status_text, -320, 220, 0)
+        self.render_text(self.tr(self.status_text), -320, 220, 0)
 
         GL.glFlush()
         self.SwapBuffers()
@@ -120,7 +127,7 @@ class WaveformCanvas3D(wxcanvas.GLCanvas):
 
         if not monitor_items:
             GL.glColor3f(1.0, 1.0, 1.0)
-            self.render_text("No monitor points selected.", -220, 0, 0)
+            self.render_text(self.tr("No monitor points selected."), -220, 0, 0)
             return
 
         cycle_width = 20
