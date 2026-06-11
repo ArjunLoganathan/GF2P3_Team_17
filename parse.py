@@ -281,7 +281,12 @@ class Parser:
 
         # Execute recursive blueprint sub-compilation if path tracking passed checks
         if file_path_str and self.error_count == 0:
-            abs_path = os.path.abspath(file_path_str)
+            scanner_path = self.scanner.path
+            if scanner_path:
+                base_dir = os.path.dirname(os.path.abspath(scanner_path))
+                abs_path = os.path.abspath(os.path.join(base_dir, file_path_str))
+            else:
+                abs_path = os.path.abspath(file_path_str)
             if abs_path in self.active_import_paths:
                 self.report_error("ERR_221", f"Circular dependency chain detected in file import statements for: '{file_path_str}'.")
                 return
@@ -624,22 +629,55 @@ class Parser:
     
     def trace_to_primitive_node(self, dev_path, initial_port):
         """Traverse structural container path steps to expose the inner flat target primitive node."""
-        parts = dev_path.split(".")
-        current_scope = ""
-        
-        for i, part in enumerate(parts):
-            current_scope = f"{current_scope}.{part}" if current_scope else part
-            scope_id = self.names.lookup([current_scope])[0]
+        while True:
+            parts = dev_path.split(".")
+            current_scope = ""
+            resolved = False
+    
+            for i, part in enumerate(parts):
+                current_scope = f"{current_scope}.{part}" if current_scope else part
+                scope_id = self.names.lookup([current_scope])[0]
+    
+                if scope_id in self.instantiated_types:
+                    macro_type_id = self.instantiated_types[scope_id]
+                    blueprint = self.custom_types[macro_type_id]
+    
+                    remaining_path = ".".join(parts[i+1:])
+                    internal_target_dev = f"{current_scope}.{remaining_path}" if remaining_path else current_scope
+    
+                    # If the port is an output port of this macro, resolve it to its internal source
+                    if initial_port in blueprint.output_ports:
+                        macro_output = self.resolve_macro_output(current_scope, initial_port)
+                        if macro_output is not None:
+                            dev_path, initial_port = macro_output
+                            resolved = True
+                            break
+                    else:
+                        return internal_target_dev, initial_port
+    
+            if not resolved:
+                break
             
-            if scope_id in self.instantiated_types:
-                macro_type_id = self.instantiated_types[scope_id]
-                blueprint = self.custom_types[macro_type_id]
-                
-                remaining_path = ".".join(parts[i+1:])
-                internal_target_dev = f"{current_scope}.{remaining_path}" if remaining_path else current_scope
-                return internal_target_dev, initial_port
-
         return dev_path, initial_port
+
+    # def trace_to_primitive_node(self, dev_path, initial_port):
+    #     """Traverse structural container path steps to expose the inner flat target primitive node."""
+    #     parts = dev_path.split(".")
+    #     current_scope = ""
+        
+    #     for i, part in enumerate(parts):
+    #         current_scope = f"{current_scope}.{part}" if current_scope else part
+    #         scope_id = self.names.lookup([current_scope])[0]
+            
+    #         if scope_id in self.instantiated_types:
+    #             macro_type_id = self.instantiated_types[scope_id]
+    #             blueprint = self.custom_types[macro_type_id]
+                
+    #             remaining_path = ".".join(parts[i+1:])
+    #             internal_target_dev = f"{current_scope}.{remaining_path}" if remaining_path else current_scope
+    #             return internal_target_dev, initial_port
+
+    #     return dev_path, initial_port
     
     def parse_signal_path(self, is_input_rule=False):
         """Parse flat labels or compound path extensions using dot notation parsing.
@@ -696,6 +734,11 @@ class Parser:
         if self.error_count == 0 and dev_path_str:
             macro_output = self.resolve_macro_output(dev_path_str, pin_str)
             if macro_output is not None:
+                dev_path_str, pin_str = macro_output
+            while True:
+                macro_output = self.resolve_macro_output(dev_path_str, pin_str)
+                if macro_output is None:
+                    break
                 dev_path_str, pin_str = macro_output
             final_dev_str, final_pin_str = self.trace_to_primitive_node(dev_path_str, pin_str)
             dev_id = self.names.lookup([final_dev_str])[0]

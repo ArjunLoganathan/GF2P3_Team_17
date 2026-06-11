@@ -2,7 +2,7 @@
 # Reusable Full Adder macro built from two Half Adders.
 
 IMPORT:
-    HALFA FROM "sample/half_adder.txt";
+    HALFA FROM "half_adder.txt";
 IMPORT END;
 
 INPUT_PORTS:
@@ -23,26 +23,17 @@ DEVICES:
 DEVICES END;
 
 CONNECT:
-    # First Half Adder adds A and B
     A = HA1.A;
     B = HA1.B;
 
-    # Second Half Adder adds the SUM from HA1 and Cin
     HA1.SUM = HA2.A;
     Cin = HA2.B;
 
-    # Final Carry Out is an OR of the carries from both Half Adders
     HA1.COUT = OR1.I1;
     HA2.COUT = OR1.I2;
 
-    # Route internal signals to the macro's output ports
     HA2.SUM = SUM;
     OR1 = COUT;
 CONNECT END;
-
-MONITOR:
-    HA1.SUM;
-    HA1.COUT;
-MONITOR END;
 
 END
