@@ -160,7 +160,7 @@ class Gui(wx.Frame):
         self.monitor_buttons = {}
         self.visible_monitors = set()
 
-        # 1. Detect language from the Command Line (LANG=...) or Desktop Settings
+        # Detect language from the Command Line (LANG=...) or Desktop Settings
         self.current_language = "English"
         lang_env = os.environ.get('LANG', '').lower()
         wx_loc = wx.GetLocale()
@@ -187,8 +187,7 @@ class Gui(wx.Frame):
         self.file_menu.Append(wx.ID_ABOUT, self.tr("About"))
         self.file_menu.AppendSeparator()       
         self.file_menu.Append(wx.ID_EXIT, self.tr("Exit"))
-        
-        # --- ENSURE THIS LINE ONLY APPEARS ONCE ---
+
         self.menu_bar.Append(self.file_menu, self.tr("File"))
 
         self.lang_menu = wx.Menu()
@@ -198,8 +197,7 @@ class Gui(wx.Frame):
         self.lang_menu.Append(self.id_lang_en, self.tr("English"))
         self.lang_menu.Append(self.id_lang_es, self.tr("Spanish"))
         self.lang_menu.Append(self.id_lang_zh, self.tr("Chinese"))
-        
-        # --- ENSURE THIS LINE ONLY APPEARS ONCE ---
+
         self.menu_bar.Append(self.lang_menu, self.tr("Language"))
 
         self.SetMenuBar(self.menu_bar)
