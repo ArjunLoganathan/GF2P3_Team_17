@@ -1,0 +1,63 @@
+# mux_4to1.txt
+# A 4-to-1 multiplexer. Select lines S1 S0 choose one of D0..D3.
+# Inverted selects are made from NAND gates with both inputs tied together
+# (NAND(x, x) = NOT x), since single-input NOT gates are not connectable.
+
+DEVICES:
+    D0 = SWITCH 0;
+    D1 = SWITCH 1;
+    D2 = SWITCH 0;
+    D3 = SWITCH 1;
+    S0 = SWITCH 0;
+    S1 = SWITCH 0;
+
+    NotS0 = NAND 2;     # inverter for S0
+    NotS1 = NAND 2;     # inverter for S1
+
+    T0 = AND 3;         # D0 . ~S1 . ~S0
+    T1 = AND 3;         # D1 . ~S1 .  S0
+    T2 = AND 3;         # D2 .  S1 . ~S0
+    T3 = AND 3;         # D3 .  S1 .  S0
+
+    Out = OR 4;         # selected output
+DEVICES END;
+
+CONNECT:
+    # Build the inverted select lines.
+    S0 = NotS0.I1;
+    S0 = NotS0.I2;
+    S1 = NotS1.I1;
+    S1 = NotS1.I2;
+
+    # Term 0: D0 AND ~S1 AND ~S0
+    D0 = T0.I1;
+    NotS1 = T0.I2;
+    NotS0 = T0.I3;
+
+    # Term 1: D1 AND ~S1 AND S0
+    D1 = T1.I1;
+    NotS1 = T1.I2;
+    S0 = T1.I3;
+
+    # Term 2: D2 AND S1 AND ~S0
+    D2 = T2.I1;
+    S1 = T2.I2;
+    NotS0 = T2.I3;
+
+    # Term 3: D3 AND S1 AND S0
+    D3 = T3.I1;
+    S1 = T3.I2;
+    S0 = T3.I3;
+
+    # Combine the four product terms.
+    T0 = Out.I1;
+    T1 = Out.I2;
+    T2 = Out.I3;
+    T3 = Out.I4;
+CONNECT END;
+
+MONITOR:
+    Out;
+MONITOR END;
+
+END

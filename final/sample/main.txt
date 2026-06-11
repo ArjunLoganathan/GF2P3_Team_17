@@ -1,0 +1,21 @@
+IMPORT:
+    HALFA FROM "sample/half_adder.txt";
+IMPORT END;
+
+DEVICES:
+    SWA = SWITCH 0;
+    SWB = SWITCH 1;
+    HA0 = HALFA;
+DEVICES END;
+
+CONNECT:
+    SWA = HA0.A;
+    SWB = HA0.B;
+CONNECT END;
+
+MONITOR:
+    HA0.SUM;
+    HA0.COUT;
+MONITOR END;
+
+END

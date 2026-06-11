@@ -1,0 +1,43 @@
+# divide_by_3.txt
+# A synchronous divide-by-3 counter with tied-off asynchronous inputs.
+
+DEVICES:
+    SysClk = CLOCK 5;     
+    FF0 = DTYPE;          
+    FF1 = DTYPE;          
+    GateD0 = AND 2;       
+    GateD1 = AND 2;       
+    
+    # Create a tie-down switch initialized to 0 (LOW)
+    Gnd = SWITCH 0;       
+DEVICES END;
+
+CONNECT:
+    # 1. Wire Flip-Flop 0 logic (DATA0 = QBAR1 AND QBAR0)
+    FF1.QBAR = GateD0.I1;    
+    FF0.QBAR = GateD0.I2;    
+    GateD0 = FF0.DATA;       
+
+    # 2. Wire Flip-Flop 1 logic (DATA1 = QBAR1 AND Q0)
+    FF1.QBAR = GateD1.I1;    
+    FF0.Q = GateD1.I2;       
+    GateD1 = FF1.DATA;       
+
+    # 3. Distribute the clock signal
+    SysClk = FF0.CLK;        
+    SysClk = FF1.CLK;
+
+    # 4. Tie SET and CLEAR inputs to LOW to satisfy Error 220
+    Gnd = FF0.SET;
+    Gnd = FF0.CLEAR;
+    Gnd = FF1.SET;
+    Gnd = FF1.CLEAR;
+CONNECT END;
+
+MONITOR:
+    SysClk;               
+    FF1.Q;                   
+    FF0.Q;                  
+MONITOR END;
+
+END

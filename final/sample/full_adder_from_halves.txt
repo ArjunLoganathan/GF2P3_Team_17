@@ -1,0 +1,39 @@
+# sample/full_adder.txt
+# Reusable Full Adder macro built from two Half Adders.
+
+IMPORT:
+    HALFA FROM "half_adder.txt";
+IMPORT END;
+
+INPUT_PORTS:
+    A;
+    B;
+    Cin;
+INPUT_PORTS END;
+
+OUTPUT_PORTS:
+    SUM;
+    COUT;
+OUTPUT_PORTS END;
+
+DEVICES:
+    HA1 = HALFA;
+    HA2 = HALFA;
+    OR1 = OR 2;
+DEVICES END;
+
+CONNECT:
+    A = HA1.A;
+    B = HA1.B;
+
+    HA1.SUM = HA2.A;
+    Cin = HA2.B;
+
+    HA1.COUT = OR1.I1;
+    HA2.COUT = OR1.I2;
+
+    HA2.SUM = SUM;
+    OR1 = COUT;
+CONNECT END;
+
+END

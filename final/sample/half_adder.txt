@@ -1,0 +1,25 @@
+INPUT_PORTS:
+    A;
+    B;
+INPUT_PORTS END;
+
+OUTPUT_PORTS:
+    SUM;
+    COUT;
+OUTPUT_PORTS END;
+
+DEVICES:
+    X1 = XOR;
+    A1 = AND 2;
+DEVICES END;
+
+CONNECT:
+    A = X1.I1;
+    B = X1.I2;
+    A = A1.I1;
+    B = A1.I2;
+    X1 = SUM;
+    A1 = COUT;
+CONNECT END;
+
+END

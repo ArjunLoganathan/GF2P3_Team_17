@@ -1,0 +1,54 @@
+# 4_bit_main.txt
+# A standalone, runnable 4-bit adder built from two 2-bit adder macros.
+# Computes: A[3:0] + B[3:0], with a carry-in.
+
+IMPORT:
+    ADDER2 FROM "sample/2_bit_adder.txt";
+IMPORT END;
+
+DEVICES:
+    # Number A inputs
+    SWA0 = SWITCH 0;
+    SWA1 = SWITCH 1;
+    SWA2 = SWITCH 1;
+    SWA3 = SWITCH 0;
+
+    # Number B inputs
+    SWB0 = SWITCH 1;
+    SWB1 = SWITCH 0;
+    SWB2 = SWITCH 1;
+    SWB3 = SWITCH 1;
+
+    # Carry in
+    SWCin = SWITCH 0;
+
+    # Two cascaded 2-bit adders
+    LO = ADDER2;
+    HI = ADDER2;
+DEVICES END;
+
+CONNECT:
+    # Low 2 bits: A[1:0] + B[1:0]
+    SWA0  = LO.A0;
+    SWA1  = LO.A1;
+    SWB0  = LO.B0;
+    SWB1  = LO.B1;
+    SWCin = LO.Cin;
+
+    # High 2 bits: A[3:2] + B[3:2], carry chained from LO
+    SWA2    = HI.A0;
+    SWA3    = HI.A1;
+    SWB2    = HI.B0;
+    SWB3    = HI.B1;
+    LO.COUT = HI.Cin;
+CONNECT END;
+
+MONITOR:
+    LO.S0;
+    LO.S1;
+    HI.S0;
+    HI.S1;
+    HI.COUT;
+MONITOR END;
+
+END
