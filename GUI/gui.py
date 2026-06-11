@@ -109,6 +109,7 @@ class Gui(wx.Frame):
         self.locale = wx.Locale(wx.LANGUAGE_SPANISH) \
             if self.language == "es" else wx.Locale(wx.LANGUAGE_ENGLISH)
         self.path = path
+        self.opened_file_path = None
         self.names, self.devices, self.network, self.monitors = empty_model()
         self.cycles_completed = 0
         self.switch_buttons = {}
@@ -118,11 +119,17 @@ class Gui(wx.Frame):
         # Configure the file menu
         file_menu = wx.Menu()
         menu_bar = wx.MenuBar()
+        file_menu.Append(wx.ID_OPEN, "&" + self.tr("Open"))
+        file_menu.Append(wx.ID_SAVE, "&" + self.tr("Save"))
+        file_menu.AppendSeparator()
         file_menu.Append(wx.ID_HELP, "&" + self.tr("Help"))
         file_menu.Append(wx.ID_ABOUT, "&" + self.tr("About"))
         file_menu.Append(wx.ID_EXIT, "&" + self.tr("Exit"))
         menu_bar.Append(file_menu, "&" + self.tr("File"))
         self.SetMenuBar(menu_bar)
+        
+        # Bind file menu events
+        self.Bind(wx.EVT_MENU, self.on_menu)
 
         # Canvas tabs for drawing signals and the circuit structure
         self.notebook = wx.Notebook(self)
@@ -217,7 +224,11 @@ class Gui(wx.Frame):
         menu_id = event.GetId()
         if menu_id == wx.ID_EXIT:
             self.Close(True)
-        if menu_id == wx.ID_HELP:
+        elif menu_id == wx.ID_OPEN:
+            self.on_open_file()
+        elif menu_id == wx.ID_SAVE:
+            self.on_save_file()
+        elif menu_id == wx.ID_HELP:
             wx.MessageBox(
                 self.tr("Run") + ": start from cycle 0 with cleared traces.\n"
                 + self.tr("Continue") + ": add more cycles to the current "
@@ -225,12 +236,46 @@ class Gui(wx.Frame):
                 "to flip it 0/1.\n" + self.tr("Monitors") +
                 ": toggle each output On/Off to show it.",
                 "Logsim " + self.tr("Help"), wx.ICON_INFORMATION | wx.OK)
-        if menu_id == wx.ID_ABOUT:
+        elif menu_id == wx.ID_ABOUT:
             wx.MessageBox(
                 "Logic Simulator\nGraphical user interface\n"
                 "Internacionalizacion: espanol\n"
                 "Non-Latin demo: Καλημερα",
                 self.tr("About") + " Logsim", wx.ICON_INFORMATION | wx.OK)
+
+    def on_open_file(self):
+        """Open a file dialog and load the selected file into the editor."""
+        wildcard = "Logic Simulator files (*.txt;*.circ;*.lsim)|*.txt;*.circ;*.lsim|Text files (*.txt)|*.txt|All files (*.*)|*.*"
+        dlg = wx.FileDialog(self, "Open file", wildcard=wildcard,
+                            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+        if dlg.ShowModal() == wx.ID_OK:
+            file_path = dlg.GetPath()
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                self.editor.SetValue(content)
+                self.opened_file_path = file_path
+                self.file_text.SetLabel("File: " + os.path.basename(file_path))
+                self.show_status("Opened: " + file_path)
+            except Exception as e:
+                wx.MessageBox("Error opening file: " + str(e),
+                            "Error", wx.ICON_ERROR)
+        dlg.Destroy()
+
+    def on_save_file(self):
+        """Save the editor content to the opened file."""
+        if self.opened_file_path is None:
+            wx.MessageBox("No file opened. Open a file first.",
+                        "Save", wx.ICON_INFORMATION)
+            return
+        
+        try:
+            with open(self.opened_file_path, 'w', encoding='utf-8') as f:
+                f.write(self.editor.GetValue())
+            self.show_status("Saved: " + self.opened_file_path)
+        except Exception as e:
+            wx.MessageBox("Error saving file: " + str(e),
+                        "Error", wx.ICON_ERROR)
 
     def build_compiler_panel(self, parent):
         """Build the Compiler tab: an editor, a Compile button, and results."""
