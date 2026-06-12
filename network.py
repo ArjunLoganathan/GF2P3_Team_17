@@ -65,11 +65,23 @@ class Network:
         """Initialise network errors and the steady_state variable."""
         self.names = names
         self.devices = devices
+        self._device_cache = {}
 
         [self.NO_ERROR, self.INPUT_TO_INPUT, self.OUTPUT_TO_OUTPUT,
          self.INPUT_CONNECTED, self.PORT_ABSENT,
          self.DEVICE_ABSENT] = self.names.unique_error_codes(6)
         self.steady_state = True  # for checking if signals have settled
+
+    def cache_device_lists(self):
+        """Pre-compute per-kind device lists. Call once after network is built."""
+        kinds = [
+            self.devices.CLOCK, self.devices.RC, self.devices.SIGGEN,
+            self.devices.SWITCH, self.devices.D_TYPE, self.devices.AND,
+            self.devices.OR, self.devices.NAND, self.devices.NOR,
+            self.devices.XOR, self.devices.NOT
+        ]
+        for kind in kinds:
+            self._device_cache[kind] = self.devices.find_devices(kind)
 
     def get_connected_output(self, device_id, input_id):
         """Return the output connected to the given input.
@@ -390,17 +402,32 @@ class Network:
 
         Return True if successful and the network does not oscillate.
         """
-        clock_devices = self.devices.find_devices(self.devices.CLOCK)
-        rc_devices = self.devices.find_devices(self.devices.RC)
-        siggen_devices = self.devices.find_devices(self.devices.SIGGEN)
-        switch_devices = self.devices.find_devices(self.devices.SWITCH)
-        d_type_devices = self.devices.find_devices(self.devices.D_TYPE)
-        and_devices = self.devices.find_devices(self.devices.AND)
-        or_devices = self.devices.find_devices(self.devices.OR)
-        nand_devices = self.devices.find_devices(self.devices.NAND)
-        nor_devices = self.devices.find_devices(self.devices.NOR)
-        xor_devices = self.devices.find_devices(self.devices.XOR)
-        not_devices = self.devices.find_devices(self.devices.NOT)  
+        # clock_devices = self.devices.find_devices(self.devices.CLOCK)
+        # rc_devices = self.devices.find_devices(self.devices.RC)
+        # siggen_devices = self.devices.find_devices(self.devices.SIGGEN)
+        # switch_devices = self.devices.find_devices(self.devices.SWITCH)
+        # d_type_devices = self.devices.find_devices(self.devices.D_TYPE)
+        # and_devices = self.devices.find_devices(self.devices.AND)
+        # or_devices = self.devices.find_devices(self.devices.OR)
+        # nand_devices = self.devices.find_devices(self.devices.NAND)
+        # nor_devices = self.devices.find_devices(self.devices.NOR)
+        # xor_devices = self.devices.find_devices(self.devices.XOR)
+        # not_devices = self.devices.find_devices(self.devices.NOT)  
+
+        if not self._device_cache:
+                self.cache_device_lists()
+
+        clock_devices  = self._device_cache[self.devices.CLOCK]
+        rc_devices     = self._device_cache[self.devices.RC]
+        siggen_devices = self._device_cache[self.devices.SIGGEN]
+        switch_devices = self._device_cache[self.devices.SWITCH]
+        d_type_devices = self._device_cache[self.devices.D_TYPE]
+        and_devices    = self._device_cache[self.devices.AND]
+        or_devices     = self._device_cache[self.devices.OR]
+        nand_devices   = self._device_cache[self.devices.NAND]
+        nor_devices    = self._device_cache[self.devices.NOR]
+        xor_devices    = self._device_cache[self.devices.XOR]
+        not_devices    = self._device_cache[self.devices.NOT]
 
         # This sets clock signals to RISING or FALLING, where necessary
         self.update_clocks()
