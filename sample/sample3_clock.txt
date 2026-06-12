@@ -1,0 +1,19 @@
+DEVICES:
+    SysClk = CLOCK 1;    
+    Gnd = SWITCH 0;      
+    PowerOnReset = RC 8;    
+    ToggleFF = DTYPE;    
+DEVICES END;
+
+CONNECT:
+    ToggleFF.QBAR = ToggleFF.DATA;
+    SysClk = ToggleFF.CLK;
+    
+    Gnd = ToggleFF.SET;
+    PowerOnReset = ToggleFF.CLEAR;
+CONNECT END;
+
+MONITOR:
+    SysClk; PowerOnReset; ToggleFF.Q;
+MONITOR END;
+END

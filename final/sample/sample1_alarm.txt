@@ -1,0 +1,23 @@
+DEVICES:
+    DoorSwitch = SWITCH 0;
+    WindowSwitch = SWITCH 1;
+    OverrideSwitch = SWITCH 0;
+    
+    AnyBreach = OR 2;
+    InvertOverride = NOT;
+    TriggerAlarm = AND 2;
+DEVICES END;
+
+CONNECT:
+    DoorSwitch = AnyBreach.I1;
+    WindowSwitch = AnyBreach.I2;
+    OverrideSwitch = InvertOverride.I;
+    
+    AnyBreach = TriggerAlarm.I1;
+    InvertOverride = TriggerAlarm.I2;
+CONNECT END;
+
+MONITOR:
+    DoorSwitch; WindowSwitch; TriggerAlarm;
+MONITOR END;
+END

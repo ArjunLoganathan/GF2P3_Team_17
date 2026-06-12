@@ -1,0 +1,19 @@
+DEVICES:
+    SwA = SWITCH 1;
+    SwB = SWITCH 0;
+    
+    TestXOR = XOR;      
+    TestNAND = NAND 2;  
+    TestNOR = NOR 2;    
+DEVICES END;
+
+CONNECT:
+    SwA = TestXOR.I1;  SwB = TestXOR.I2;
+    SwA = TestNAND.I1; SwB = TestNAND.I2;
+    SwA = TestNOR.I1;  SwB = TestNOR.I2;
+CONNECT END;
+
+MONITOR:
+    SwA; SwB; TestXOR; TestNAND; TestNOR;
+MONITOR END;
+END

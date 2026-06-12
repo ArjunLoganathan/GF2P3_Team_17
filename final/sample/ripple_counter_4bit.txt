@@ -1,0 +1,47 @@
+# ripple_counter_4bit.txt
+# A 4-bit asynchronous (ripple) counter.
+# Each D-type is wired as a toggle (DATA = QBAR) and is clocked by the
+# previous stage's Q output, so the count ripples through the chain.
+
+DEVICES:
+    Clk = CLOCK 1;
+    Gnd = SWITCH 0;
+
+    FF0 = DTYPE;
+    FF1 = DTYPE;
+    FF2 = DTYPE;
+    FF3 = DTYPE;
+DEVICES END;
+
+CONNECT:
+    # Toggle wiring: feed each inverted output back to its own data input.
+    FF0.QBAR = FF0.DATA;
+    FF1.QBAR = FF1.DATA;
+    FF2.QBAR = FF2.DATA;
+    FF3.QBAR = FF3.DATA;
+
+    # Ripple clocking: stage n is clocked by stage n-1's Q.
+    Clk = FF0.CLK;
+    FF0.Q = FF1.CLK;
+    FF1.Q = FF2.CLK;
+    FF2.Q = FF3.CLK;
+
+    # Tie all asynchronous SET/CLEAR inputs low.
+    Gnd = FF0.SET;
+    Gnd = FF0.CLEAR;
+    Gnd = FF1.SET;
+    Gnd = FF1.CLEAR;
+    Gnd = FF2.SET;
+    Gnd = FF2.CLEAR;
+    Gnd = FF3.SET;
+    Gnd = FF3.CLEAR;
+CONNECT END;
+
+MONITOR:
+    FF0.Q;
+    FF1.Q;
+    FF2.Q;
+    FF3.Q;
+MONITOR END;
+
+END

@@ -1,0 +1,18 @@
+DEVICES:
+    TelemetryGen = SIGGEN 1101001;
+    InhibitSwitch = SWITCH 0;
+    
+    InvertInhibit = NOT;
+    ValidSignal = AND 2;
+DEVICES END;
+
+CONNECT:
+    InhibitSwitch = InvertInhibit.I;
+    TelemetryGen = ValidSignal.I1;
+    InvertInhibit = ValidSignal.I2;
+CONNECT END;
+
+MONITOR:
+    TelemetryGen; InhibitSwitch; ValidSignal;
+MONITOR END;
+END
