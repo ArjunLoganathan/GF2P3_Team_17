@@ -1,0 +1,59 @@
+# sample/2_bit_adder.txt
+# Reusable 4-bit adder macro built from four Full Adders.
+
+IMPORT:
+    FULLA FROM "full_adder_from_halves.txt";
+IMPORT END;
+
+INPUT_PORTS:
+    A0;
+    A1;
+    A2;
+    A3;
+    B0;
+    B1;
+    B2;
+    B3;
+    Cin;
+INPUT_PORTS END;
+
+OUTPUT_PORTS:
+    S0;
+    S1;
+    S2;
+    S3;
+    COUT;
+OUTPUT_PORTS END;
+
+DEVICES:
+    FA0 = FULLA;
+    FA1 = FULLA;
+    FA2 = FULLA;
+    FA3 = FULLA;
+DEVICES END;
+
+CONNECT:
+    A0  = FA0.A;
+    B0  = FA0.B;
+    Cin = FA0.Cin;
+
+    A1       = FA1.A;
+    B1       = FA1.B;
+    FA0.COUT = FA1.Cin;
+
+    A2       = FA2.A;
+    B2       = FA2.B;
+    FA1.COUT = FA2.Cin;
+
+    A3       = FA3.A;
+    B3       = FA3.B;
+    FA2.COUT = FA3.Cin;
+
+    FA0.SUM  = S0;
+    FA1.SUM  = S1;
+    FA2.SUM  = S2;
+    FA3.SUM  = S3;
+    FA3.COUT = COUT;
+CONNECT END;
+
+END

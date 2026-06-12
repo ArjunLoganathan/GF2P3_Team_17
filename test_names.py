@@ -111,3 +111,16 @@ def test_unique_error_codes_zero(new_names):
     codes = new_names.unique_error_codes(0)
     assert list(codes) == []
     assert new_names.error_code_count == 0
+
+def test_newly_added_reserved_keywords(new_names):
+    """Verify that specific newly introduced keywords are safely registered in the mapping."""
+    assert "RC" in new_names.reserved_keywords
+    assert "SIGGEN" in new_names.reserved_keywords
+    
+    rc_id = new_names.query("RC")
+    siggen_id = new_names.query("SIGGEN")
+    
+    assert rc_id is not None
+    assert siggen_id is not None
+    assert new_names.get_name_string(rc_id) == "RC"
+    assert new_names.get_name_string(siggen_id) == "SIGGEN"

@@ -1,0 +1,47 @@
+# sample/ripple_counter_8bit.txt
+# 8-bit ripple counter macro built from two 4-bit counter macros.
+
+IMPORT:
+    CNT4 FROM "ripple_counter_4bit_macro.txt";
+IMPORT END;
+
+INPUT_PORTS:
+    CLK;
+    GND;
+INPUT_PORTS END;
+
+OUTPUT_PORTS:
+    Q0;
+    Q1;
+    Q2;
+    Q3;
+    Q4;
+    Q5;
+    Q6;
+    Q7;
+OUTPUT_PORTS END;
+
+DEVICES:
+    LO = CNT4;
+    HI = CNT4;
+DEVICES END;
+
+CONNECT:
+    CLK     = LO.CLK;
+    GND     = LO.GND;
+
+    # High nibble is clocked by Q3 of the low nibble (ripple carry)
+    LO.Q3   = HI.CLK;
+    GND     = HI.GND;
+
+    LO.Q0 = Q0;
+    LO.Q1 = Q1;
+    LO.Q2 = Q2;
+    LO.Q3 = Q3;
+    HI.Q0 = Q4;
+    HI.Q1 = Q5;
+    HI.Q2 = Q6;
+    HI.Q3 = Q7;
+CONNECT END;
+
+END

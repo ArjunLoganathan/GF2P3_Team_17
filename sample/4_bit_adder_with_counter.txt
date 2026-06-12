@@ -1,0 +1,54 @@
+# 4_bit_adder_with_counter.txt
+# 4-bit adder driven by an 8-bit ripple counter.
+# Low nibble (Q0-Q3) -> A input, High nibble (Q4-Q7) -> B input.
+# Watch the sum change every clock cycle as the counter increments.
+
+IMPORT:
+    ADDER2 FROM "sample/4_bit_adder.txt";
+    CNT8   FROM "sample/ripple_counter_8bit.txt";
+IMPORT END;
+
+DEVICES:
+    Clk    = CLOCK 1;
+    Gnd    = SWITCH 0;
+
+    CTR    = CNT8;
+    ADD    = ADDER2;
+DEVICES END;
+
+CONNECT:
+    Clk = CTR.CLK;
+    Gnd = CTR.GND;
+
+    # A input: low nibble of counter
+    CTR.Q0 = ADD.A0;
+    CTR.Q1 = ADD.A1;
+    CTR.Q2 = ADD.A2;
+    CTR.Q3 = ADD.A3;
+
+    # B input: high nibble of counter
+    CTR.Q4 = ADD.B0;
+    CTR.Q5 = ADD.B1;
+    CTR.Q6 = ADD.B2;
+    CTR.Q7 = ADD.B3;
+
+    Gnd = ADD.Cin;
+CONNECT END;
+
+MONITOR:
+    CTR.Q0;
+    CTR.Q1;
+    CTR.Q2;
+    CTR.Q3;
+    CTR.Q4;
+    CTR.Q5;
+    CTR.Q6;
+    CTR.Q7;
+    ADD.S0;
+    ADD.S1;
+    ADD.S2;
+    ADD.S3;
+    ADD.COUT;
+MONITOR END;
+
+END

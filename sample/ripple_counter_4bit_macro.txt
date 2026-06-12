@@ -1,0 +1,50 @@
+# sample/ripple_counter_4bit_macro.txt
+# 4-bit ripple counter as an importable macro.
+# CLK and GND must be driven externally.
+
+INPUT_PORTS:
+    CLK;
+    GND;
+INPUT_PORTS END;
+
+OUTPUT_PORTS:
+    Q0;
+    Q1;
+    Q2;
+    Q3;
+OUTPUT_PORTS END;
+
+DEVICES:
+    FF0 = DTYPE;
+    FF1 = DTYPE;
+    FF2 = DTYPE;
+    FF3 = DTYPE;
+DEVICES END;
+
+CONNECT:
+    FF0.QBAR = FF0.DATA;
+    FF1.QBAR = FF1.DATA;
+    FF2.QBAR = FF2.DATA;
+    FF3.QBAR = FF3.DATA;
+
+    CLK    = FF0.CLK;
+    FF0.Q  = FF1.CLK;
+    FF1.Q  = FF2.CLK;
+    FF2.Q  = FF3.CLK;
+
+    GND = FF0.SET;
+    GND = FF0.CLEAR;
+    GND = FF1.SET;
+    GND = FF1.CLEAR;
+    GND = FF2.SET;
+    GND = FF2.CLEAR;
+    GND = FF3.SET;
+    GND = FF3.CLEAR;
+
+    FF0.Q = Q0;
+    FF1.Q = Q1;
+    FF2.Q = Q2;
+    FF3.Q = Q3;
+CONNECT END;
+
+END

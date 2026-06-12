@@ -199,3 +199,66 @@ def test_scanner_trailing_whitespace_and_comments_no_newline(tmp_path, names_ins
     assert scanner.get_symbol().type == TokenType.SEMICOLON
     
     assert scanner.get_symbol().type == TokenType.EOF
+
+def test_scanner_with_source_text_directly(names_instance):
+    """Test that the scanner can accept source text directly without reading from a file path."""
+    # Passing a dummy path because source_text overrides file reading
+    scanner = Scanner(path="dummy_path.txt", names=names_instance, source_text="DEVICES;")
+    
+    assert scanner.get_symbol().type == TokenType.KEYWORD
+    assert scanner.get_symbol().type == TokenType.SEMICOLON
+    assert scanner.get_symbol().type == TokenType.EOF
+
+def test_scanner_print_error_last_line_no_newline(tmp_path, names_instance, capsys):
+    """Test print_error_line when the error occurs on the final line with no trailing newline."""
+    text = "DEVICES\nINVALID_TOKEN $"
+    scanner = write_and_scan(tmp_path, text, names_instance)
+    
+    # Step through tokens to reach the invalid symbol '$'
+    scanner.get_symbol()  # DEVICES
+    scanner.get_symbol()  # INVALID_TOKEN
+    invalid_sym = scanner.get_symbol()  # $
+    assert invalid_sym.type == TokenType.INVALID
+    
+    scanner.print_error_line()
+    
+    captured = capsys.readouterr()
+    output_lines = captured.out.split('\n')
+    
+    # Verify the visual caret points exactly to the '$' character
+    assert "INVALID_TOKEN $" in output_lines[1]
+    assert "              ^" in output_lines[2]
+
+def test_scanner_print_error_with_explicit_index(tmp_path, names_instance, capsys):
+    """Test print_error_line when providing an explicit error_index override."""
+    text = "DEVICES G1;"
+    scanner = write_and_scan(tmp_path, text, names_instance)
+    
+    # 'DEVICES ' is 8 characters long. index 8 points to 'G'
+    scanner.get_symbol()  # Scan 'DEVICES'
+    scanner.print_error_line(error_index=8)
+    
+    captured = capsys.readouterr()
+    output_lines = captured.out.split('\n')
+    assert "DEVICES G1;" in output_lines[1]
+    assert "        ^" in output_lines[2]
+
+def test_scanner_print_error_index_error_handling(tmp_path, names_instance, capsys):
+    """Test that print_error_line gracefully catches an IndexError if current_line goes out of bounds."""
+    text = "DEVICES;"
+    scanner = write_and_scan(tmp_path, text, names_instance)
+    
+    # Artificially corrupt the line state to force an IndexError
+    scanner.current_line = 9999  
+    
+    scanner.print_error_line()
+    captured = capsys.readouterr()
+    assert "Could not render visual caret due to indexing error" in captured.out
+
+def test_scanner_reserved_keyword_ids_is_set(tmp_path, names_instance):
+    """Test that reserved_keyword_ids is optimized into a set collection during initialization."""
+    scanner = write_and_scan(tmp_path, "DEVICES", names_instance)
+    
+    assert isinstance(scanner.reserved_keyword_ids, set)
+    devices_id = names_instance.query("DEVICES")
+    assert devices_id in scanner.reserved_keyword_ids
